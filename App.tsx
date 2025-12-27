@@ -45,10 +45,10 @@ import {
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
-import { User, Employee, AppSettings, DEFAULT_SETTINGS } from './types';
-import { ContractDocument } from './components/ContractDocument';
-import { VerificationDocument } from './components/VerificationDocument';
-import { SpmtDocument } from './components/SpmtDocument';
+import { User, Employee, AppSettings, DEFAULT_SETTINGS } from './types.ts';
+import { ContractDocument } from './components/ContractDocument.tsx';
+import { VerificationDocument } from './components/VerificationDocument.tsx';
+import { SpmtDocument } from './components/SpmtDocument.tsx';
 
 // --- SUPABASE INITIALIZATION ---
 const getSupabaseConfig = () => {
@@ -99,7 +99,7 @@ const mapDbToEmployee = (data: any): Employee => ({
   address: data.address,
   position: data.position,
   unit: data.unit,
-  placementUnit: data.placement_unit || '', // Mapping baru
+  placementUnit: data.placement_unit || '',
   agreementNumber: data.agreementnumber || '',
   salaryAmount: data.salaryamount || '',
   salaryText: data.salarytext || '',
@@ -123,7 +123,7 @@ const mapEmployeeToDb = (emp: Employee) => ({
   address: emp.address,
   position: emp.position,
   unit: emp.unit,
-  placement_unit: emp.placementUnit, // Mapping baru
+  placement_unit: emp.placementUnit,
   agreementnumber: emp.agreementNumber,
   salaryamount: emp.salaryAmount,
   salarytext: emp.salaryText,

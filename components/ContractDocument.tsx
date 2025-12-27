@@ -1,5 +1,5 @@
 import React from 'react';
-import { Employee, AppSettings } from '../types';
+import { Employee, AppSettings } from '../types.ts';
 
 interface ContractDocumentProps {
   employee: Employee;
@@ -108,7 +108,7 @@ export const ContractDocument: React.FC<ContractDocumentProps> = ({ employee, se
               <td className="w-8 align-top">II.</td>
               <td className="w-48 align-top">Nama</td>
               <td className="w-4 align-top">:</td>
-              <td className="font-bold text-left uppercase">{employee.name}</td>
+              <td className="font-bold text-left">{employee.name}</td>
             </tr>
             <tr>
               <td></td>
@@ -470,7 +470,7 @@ export const ContractDocument: React.FC<ContractDocumentProps> = ({ employee, se
 
            {/* Name Block */}
            <div className="text-center">
-             <p className="font-bold underline uppercase">{employee.name}</p>
+             <p className="font-bold underline">{employee.name}</p>
              <p>NI PPPK Paruh Waktu. {employee.nip}</p>
            </div>
         </div>
@@ -489,7 +489,7 @@ export const ContractDocument: React.FC<ContractDocumentProps> = ({ employee, se
 
            {/* Name Block */}
            <div className="text-center">
-             <p className="font-bold underline uppercase">{settings.officialName || 'Nama..........................'}</p>
+             <p className="font-bold underline">{settings.officialName || 'Nama..........................'}</p>
              <p>NIP. {settings.officialNip || '.............................'}</p>
            </div>
         </div>

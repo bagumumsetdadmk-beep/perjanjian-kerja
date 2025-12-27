@@ -1,5 +1,5 @@
 import React from 'react';
-import { Employee, AppSettings } from '../types';
+import { Employee, AppSettings } from '../types.ts';
 
 interface VerificationDocumentProps {
   employee: Employee;

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Employee, AppSettings } from '../types';
+import { Employee, AppSettings } from '../types.ts';
 
 interface SpmtDocumentProps {
   employee: Employee;
@@ -17,7 +17,7 @@ export const SpmtDocument: React.FC<SpmtDocumentProps> = ({ employee, settings }
     <div className="bg-white p-6 max-w-[210mm] mx-auto spmt-font text-justify text-black print:p-0 print:max-w-none print:w-full print:mx-0 leading-tight font-sans">
       
       {/* KOP SURAT */}
-      <div className="border-b-4 border-double border-black pb-1 mb-4 flex items-center justify-center gap-4 text-center">
+      <div className="border-b-4 border-double border-black pb-1 mb-5 flex items-center justify-center gap-4 text-center">
         {settings.logoUrl && (
              <img src={settings.logoUrl} alt="Logo" className="h-20 w-auto object-contain absolute left-8 top-8 print:left-0 print:top-0 print:relative print:mr-4" />
         )}
@@ -33,13 +33,13 @@ export const SpmtDocument: React.FC<SpmtDocumentProps> = ({ employee, settings }
       </div>
 
       {/* JUDUL */}
-      <div className="text-center mb-4">
+      <div className="text-center mb-5">
         <h2 className="text-lg font-bold underline">SURAT PERNYATAAN MELAKSANAKAN TUGAS</h2>
         <p>Nomor : 821 / {employee.spmtNumber || '.........................'} / {new Date().getFullYear()}</p>
       </div>
 
       {/* ISI: YANG BERTANDA TANGAN */}
-      <div className="mb-2">
+      <div className="mb-3">
         <p className="mb-0.5">Yang bertanda tangan dibawah ini :</p>
         <table className="w-full ml-2">
           <tbody>
@@ -71,7 +71,7 @@ export const SpmtDocument: React.FC<SpmtDocumentProps> = ({ employee, settings }
         </table>
       </div>
 
-      <div className="mb-2">
+      <div className="mb-4">
         <p className="mb-0.5">Dengan ini menyatakan bahwa :</p>
         <table className="w-full ml-2">
           <tbody>
@@ -79,7 +79,7 @@ export const SpmtDocument: React.FC<SpmtDocumentProps> = ({ employee, settings }
               <td className="w-6 align-top">1.</td>
               <td className="w-[250px] align-top">Nama</td>
               <td className="w-4 align-top">:</td>
-              <td className="font-bold uppercase align-top">{employee.name}</td>
+              <td className="font-bold align-top">{employee.name}</td>
             </tr>
             <tr>
               <td className="align-top">2.</td>
@@ -102,12 +102,11 @@ export const SpmtDocument: React.FC<SpmtDocumentProps> = ({ employee, settings }
           </tbody>
         </table>
         
-        {/* Sub-list untuk poin 4 */}
         <table className="w-full ml-8 mt-0.5">
              <tbody>
                 <tr>
                   <td className="w-6 align-top">a.</td>
-                  <td className="w-[250px] align-top">Pejabat yang mengangkat</td>
+                  <td className="w-[225px] align-top">Pejabat yang mengangkat</td>
                   <td className="w-4 align-top">:</td>
                   <td className="uppercase align-top">{settings.skOfficial || 'BUPATI DEMAK'}</td>
                 </tr>
@@ -123,7 +122,6 @@ export const SpmtDocument: React.FC<SpmtDocumentProps> = ({ employee, settings }
                   <td className="align-top">:</td>
                   <td className="align-top">{formatDateIndonesian(employee.skDate)}</td>
                 </tr>
-                {/* POIN D: ALIGN BOTTOM UNTUK TANGGAL */}
                 <tr>
                   <td className="align-top">d.</td>
                   <td className="align-bottom">
@@ -150,18 +148,26 @@ export const SpmtDocument: React.FC<SpmtDocumentProps> = ({ employee, settings }
       </div>
 
       {/* TANDA TANGAN */}
-      <div className="flex justify-end mt-10 mb-2 break-inside-avoid">
-         <div className="w-[320px]">
-            <p>Demak, {formatDateIndonesian(employee.spmtDate)}</p>
-            <p className="mb-1">Yang membuat pernyataan,</p>
+      <div className="flex justify-end mt-10 mb-8 break-inside-avoid text-left">
+         <div className="w-[380px]">
+            {/* 1. Demak, Tanggal (Menjorok) */}
+            <p className="pl-12 mb-2">Demak, {formatDateIndonesian(employee.spmtDate)}</p>
             
-            <p className="mb-0">a.n. Sekretaris Daerah</p>
-              <p>{settings.officialPosition.replace('Sekretaris Daerah', '').replace('Sekda', '').trim()}</p>
-            {/* Dikurangi drastis dari mb-16 ke h-20 (sekitar 5rem) agar muat */}
+            {/* 2. Yang membuat pernyataan (Menjorok) */}
+            <p className="pl-12 mb-4">Yang membuat pernyataan,</p>
+            
+            {/* 4. a.n. Sekretaris Daerah (LEBIH MAJU / Tidak ada padding kiri = paling kiri di box) */}
+            <p className="pl-5">a.n. Sekretaris Daerah</p>
+            
+            {/* 5. Jabatan Spesifik (Menjorok sejajar no 1 & 2) */}
+            <p className="pl-12">{settings.officialPosition.replace('Sekretaris Daerah', '').replace('Sekda', '').trim()}</p>
+            
+            {/* Jarak Tanda Tangan */}
             <div className="h-20"></div>
             
-            <div className="-mt-4">
-              <p className="font-bold underline uppercase mt-0.5">{settings.officialName}</p>
+            {/* 9, 10, 11. Nama, Pangkat, NIP (Menjorok sejajar no 1 & 2) */}
+            <div className="pl-12 -mt-1">
+              <p className="font-bold underline uppercase">{settings.officialName}</p>
               <p className="font-medium">{settings.officialRank?.split('(')[0] || 'Pembina ............'}</p>
               <p>NIP {settings.officialNip}</p>
             </div>
