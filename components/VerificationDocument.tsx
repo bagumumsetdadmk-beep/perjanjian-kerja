@@ -111,7 +111,7 @@ export const VerificationDocument: React.FC<VerificationDocumentProps> = ({
               </div>
               <div>
                   <p className="font-bold underline uppercase">{verifierName || '..................................'}</p>
-                  <p>NIP. {verifierNip || '..................................'}</p>
+                  <p>{verifierNip || '..................................'}</p>
               </div>
           </div>
       </div>

@@ -33,14 +33,14 @@ export const SpmtDocument: React.FC<SpmtDocumentProps> = ({ employee, settings }
       </div>
 
       {/* JUDUL */}
-      <div className="text-center mb-5">
-        <h2 className="text-lg font-bold underline">SURAT PERNYATAAN MELAKSANAKAN TUGAS</h2>
+      <div className="text-center mb-6">
+        <h2 className="text-lg font-bold font-bold underline">SURAT PERNYATAAN MELAKSANAKAN TUGAS</h2>
         <p>Nomor : 821 / {employee.spmtNumber || '.........................'} / {new Date().getFullYear()}</p>
       </div>
 
       {/* ISI: YANG BERTANDA TANGAN */}
       <div className="mb-3">
-        <p className="mb-0.5">Yang bertanda tangan dibawah ini :</p>
+        <p className="mb-1">Yang bertanda tangan dibawah ini :</p>
         <table className="w-full ml-2">
           <tbody>
             <tr>
@@ -72,7 +72,7 @@ export const SpmtDocument: React.FC<SpmtDocumentProps> = ({ employee, settings }
       </div>
 
       <div className="mb-4">
-        <p className="mb-0.5">Dengan ini menyatakan bahwa :</p>
+        <p className="mb-1">Dengan ini menyatakan bahwa :</p>
         <table className="w-full ml-2">
           <tbody>
             <tr>
@@ -96,7 +96,7 @@ export const SpmtDocument: React.FC<SpmtDocumentProps> = ({ employee, settings }
             <tr>
               <td className="align-top">4.</td>
               <td className="align-top" colSpan={3}>
-                Surat Keputusan pengangkatan sebagai Pegawai Pemerintah dengan Perjanjian Kerja Paruh Waktu :
+                Surat Pengangkatan sebagai Pegawai Pemerintah dengan Perjanjian Kerja Paruh Waktu (PPPK Paruh Waktu) :
               </td>
             </tr>
           </tbody>
@@ -126,13 +126,13 @@ export const SpmtDocument: React.FC<SpmtDocumentProps> = ({ employee, settings }
                   <td className="align-top">d.</td>
                   <td className="align-bottom">
                      Tanggal mulai berlakunya<br/>
-                     Pengangkatan sebagai<br/>
+                     pengangkatan sebagai<br/>
                      Pegawai Pemerintah<br/>
                      dengan Perjanjian Kerja<br/>
                      Paruh Waktu
                   </td>
                   <td className="align-bottom pb-0.5">:</td>
-                  <td className="align-bottom pb-0.5">01 Oktober 2025</td>
+                  <td className="align-bottom pb-0.5">1 Oktober 2025 sampai dengan 30 September 2026</td>
                 </tr>
              </tbody>
         </table>
@@ -151,7 +151,8 @@ export const SpmtDocument: React.FC<SpmtDocumentProps> = ({ employee, settings }
       <div className="flex justify-end mt-10 mb-8 break-inside-avoid text-left">
          <div className="w-[380px]">
             {/* 1. Demak, Tanggal (Menjorok) */}
-            <p className="pl-12 mb-2">Demak, {formatDateIndonesian(employee.spmtDate)}</p>
+            <p className="pl-12 mb-1">Ditetapkan di Demak</p>
+            <p className="pl-12 mb-2">Pada Tanggal 31 Desember 2025</p>
             
             {/* 2. Yang membuat pernyataan (Menjorok) */}
             <p className="pl-12 mb-4">Yang membuat pernyataan,</p>
@@ -167,7 +168,7 @@ export const SpmtDocument: React.FC<SpmtDocumentProps> = ({ employee, settings }
             
             {/* 9, 10, 11. Nama, Pangkat, NIP (Menjorok sejajar no 1 & 2) */}
             <div className="pl-12 -mt-1">
-              <p className="font-bold underline uppercase">{settings.officialName}</p>
+              <p className="font-bold underline">{settings.officialName}</p>
               <p className="font-medium">{settings.officialRank?.split('(')[0] || 'Pembina ............'}</p>
               <p>NIP {settings.officialNip}</p>
             </div>
