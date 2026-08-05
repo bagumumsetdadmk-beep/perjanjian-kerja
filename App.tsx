@@ -41,100 +41,97 @@ import {
   Search,
   ChevronLeft,
   Briefcase,
-  Info
+  Info,
+  ShieldCheck
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
-import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import { initializeApp } from 'firebase/app';
+import { getFirestore, collection, getDocs, doc, setDoc, deleteDoc, query, orderBy, getDoc, writeBatch } from 'firebase/firestore';
 import { User, Employee, AppSettings, DEFAULT_SETTINGS } from './types.ts';
 import { ContractDocument } from './components/ContractDocument.tsx';
 import { VerificationDocument } from './components/VerificationDocument.tsx';
 import { SpmtDocument } from './components/SpmtDocument.tsx';
 
-// --- SUPABASE INITIALIZATION ---
-const getSupabaseConfig = () => {
-  const envUrl = (import.meta as any).env?.VITE_SUPABASE_URL;
-  const envKey = (import.meta as any).env?.VITE_SUPABASE_KEY;
-  const localUrl = localStorage.getItem('SB_URL');
-  const localKey = localStorage.getItem('SB_KEY');
-  
-  const url = envUrl || localUrl || '';
-  const key = envKey || localKey || '';
-  const source = envUrl ? 'env' : (localUrl ? 'manual' : 'none');
-
-  return { url, key, source };
-};
-
-let supabase: SupabaseClient | null = null;
+// --- FIREBASE INITIALIZATION ---
+import firebaseConfig from './firebase-applet-config.json';
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
 
 // --- MAPPING HELPERS ---
+const sanitizeForFirestore = (obj: Record<string, any>) => {
+  const clean: Record<string, any> = {};
+  for (const key of Object.keys(obj)) {
+    clean[key] = obj[key] === undefined ? '' : obj[key];
+  }
+  return clean;
+};
+
 const mapDbToSettings = (data: any): AppSettings => ({
-  opdName: data.opdname || DEFAULT_SETTINGS.opdName,
-  logoUrl: data.logourl || '',
-  officialName: data.officialname || DEFAULT_SETTINGS.officialName,
-  officialNip: data.officialnip || DEFAULT_SETTINGS.officialNip,
-  officialPosition: data.officialposition || DEFAULT_SETTINGS.officialPosition,
-  officialRank: data.officialrank || DEFAULT_SETTINGS.officialRank,
-  skOfficial: data.skofficial || DEFAULT_SETTINGS.skOfficial,
-  signatureDate: data.signaturedate || DEFAULT_SETTINGS.signatureDate,
+  opdName: data?.opdName || DEFAULT_SETTINGS.opdName,
+  logoUrl: data?.logoUrl || '',
+  kopImageUrl: data?.kopImageUrl || '',
+  officialName: data?.officialName || DEFAULT_SETTINGS.officialName,
+  officialNip: data?.officialNip || DEFAULT_SETTINGS.officialNip,
+  officialPosition: data?.officialPosition || DEFAULT_SETTINGS.officialPosition,
+  officialRank: data?.officialRank || DEFAULT_SETTINGS.officialRank,
+  skOfficial: data?.skOfficial || DEFAULT_SETTINGS.skOfficial,
+  signatureDate: data?.signatureDate || DEFAULT_SETTINGS.signatureDate,
 });
 
-const mapSettingsToDb = (settings: AppSettings) => ({
-  opdname: settings.opdName,
-  logourl: settings.logoUrl,
-  officialname: settings.officialName,
-  officialnip: settings.officialNip,
-  officialposition: settings.officialPosition,
-  officialrank: settings.officialRank,
-  skofficial: settings.skOfficial,
-  signaturedate: settings.signatureDate,
+const mapSettingsToDb = (settings: Partial<AppSettings>) => sanitizeForFirestore({
+  opdName: settings.opdName || DEFAULT_SETTINGS.opdName,
+  logoUrl: settings.logoUrl || '',
+  kopImageUrl: settings.kopImageUrl || '',
+  officialName: settings.officialName || DEFAULT_SETTINGS.officialName,
+  officialNip: settings.officialNip || DEFAULT_SETTINGS.officialNip,
+  officialPosition: settings.officialPosition || DEFAULT_SETTINGS.officialPosition,
+  officialRank: settings.officialRank || DEFAULT_SETTINGS.officialRank,
+  skOfficial: settings.skOfficial || DEFAULT_SETTINGS.skOfficial,
+  signatureDate: settings.signatureDate || DEFAULT_SETTINGS.signatureDate,
 });
 
 const mapDbToEmployee = (data: any): Employee => ({
-  id: data.id,
-  nip: data.nip,
-  name: data.name,
-  placeOfBirth: data.placeofbirth || '',
-  dateOfBirth: data.dateofbirth || '',
-  education: data.education,
-  address: data.address,
-  position: data.position,
-  unit: data.unit,
-  placementUnit: data.placement_unit || '',
-  agreementNumber: data.agreementnumber || '',
-  salaryAmount: data.salaryamount || '',
-  salaryText: data.salarytext || '',
-  status: data.status || 'pending',
-  // New Fields for SPMT
-  spmtNumber: data.spmtnumber || '',
-  skNumber: data.sknumber || '',
-  skDate: data.skdate || '',
-  tmtDate: data.tmtdate || '',
-  spmtDate: data.spmtdate || ''
+  id: data?.id || '',
+  nip: data?.nip || '',
+  name: data?.name || '',
+  placeOfBirth: data?.placeOfBirth || '',
+  dateOfBirth: data?.dateOfBirth || '',
+  education: data?.education || '',
+  address: data?.address || '',
+  position: data?.position || '',
+  unit: data?.unit || '',
+  placementUnit: data?.placementUnit || '',
+  agreementNumber: data?.agreementNumber || '',
+  salaryAmount: data?.salaryAmount || '',
+  salaryText: data?.salaryText || '',
+  status: data?.status || 'pending',
+  spmtNumber: data?.spmtNumber || '',
+  skNumber: data?.skNumber || '',
+  skDate: data?.skDate || '',
+  tmtDate: data?.tmtDate || '',
+  spmtDate: data?.spmtDate || ''
 });
 
-const mapEmployeeToDb = (emp: Employee) => ({
-  id: emp.id,
-  nip: emp.nip,
-  name: emp.name,
-  placeofbirth: emp.placeOfBirth,
-  // FIX: Convert empty string to null for DATE types
-  dateofbirth: emp.dateOfBirth || null,
-  education: emp.education,
-  address: emp.address,
-  position: emp.position,
-  unit: emp.unit,
-  placement_unit: emp.placementUnit,
-  agreementnumber: emp.agreementNumber,
-  salaryamount: emp.salaryAmount,
-  salarytext: emp.salaryText,
-  status: emp.status,
-  // New Fields
-  spmtnumber: emp.spmtNumber,
-  sknumber: emp.skNumber,
-  // FIX: Convert empty string to null for DATE types
-  skdate: emp.skDate || null,
-  tmtdate: emp.tmtDate || null,
-  spmtdate: emp.spmtDate || null
+const mapEmployeeToDb = (emp: Partial<Employee>) => sanitizeForFirestore({
+  id: emp.id || '',
+  nip: emp.nip || '',
+  name: emp.name || '',
+  placeOfBirth: emp.placeOfBirth || '',
+  dateOfBirth: emp.dateOfBirth || '',
+  education: emp.education || '',
+  address: emp.address || '',
+  position: emp.position || '',
+  unit: emp.unit || '',
+  placementUnit: emp.placementUnit || '',
+  agreementNumber: emp.agreementNumber || '',
+  salaryAmount: emp.salaryAmount || '',
+  salaryText: emp.salaryText || '',
+  status: emp.status || 'pending',
+  spmtNumber: emp.spmtNumber || '',
+  skNumber: emp.skNumber || '',
+  skDate: emp.skDate || '',
+  tmtDate: emp.tmtDate || '',
+  spmtDate: emp.spmtDate || ''
 });
 
 // --- HELPER FUNCTIONS ---
@@ -198,6 +195,42 @@ const PLACEMENT_UNITS = [
   "Bagian Umum"
 ];
 
+const VERIFIKATOR_ACCOUNTS: Record<string, { name: string; unit: string }> = {
+  'verifikator': { name: 'Verifikator Utama (Semua Bagian)', unit: 'Semua Bagian' },
+  'verifikator_umum': { name: 'Verifikator Bagian Umum', unit: 'Bagian Umum' },
+  'verifikator_hukum': { name: 'Verifikator Bagian Hukum', unit: 'Bagian Hukum' },
+  'verifikator_pemerintahan': { name: 'Verifikator Bagian Pemerintahan', unit: 'Bagian Pemerintahan' },
+  'verifikator_kesra': { name: 'Verifikator Bagian Kesejahteraan Rakyat', unit: 'Bagian Kesejahteraan Rakyat' },
+  'verifikator_pembangunan': { name: 'Verifikator Bagian Administrasi Pembangunan', unit: 'Bagian Administrasi Pembangunan' },
+  'verifikator_ekonomi': { name: 'Verifikator Bagian Perekonomian dan SDA', unit: 'Bagian Perekonomian dan SDA' },
+  'verifikator_pbj': { name: 'Verifikator Bagian Pengadaan Barang dan Jasa', unit: 'Bagian Pengadaan Barang dan Jasa' },
+  'verifikator_organisasi': { name: 'Verifikator Bagian Organisasi', unit: 'Bagian Organisasi' },
+  'verifikator_prokopim': { name: 'Verifikator Bagian Protokol dan Komunikasi Pimpinan', unit: 'Bagian Protokol dan Komunikasi Pimpinan' },
+};
+
+const canUserVerifyEmployee = (currentUser: User | null, emp: Employee | null) => {
+  if (!currentUser || !emp) return false;
+  if (currentUser.role === 'admin') return true;
+  if (currentUser.role === 'verifikator') {
+    if (!currentUser.placementUnit || currentUser.placementUnit === 'Semua Bagian') return true;
+    return emp.placementUnit === currentUser.placementUnit || emp.unit === currentUser.placementUnit;
+  }
+  return false;
+};
+
+const canUserPrintVerification = (currentUser: User | null, emp: Employee | null) => {
+  if (!currentUser || !emp) return false;
+  if (currentUser.role === 'admin') return true;
+  if (currentUser.role === 'verifikator') {
+    if (!currentUser.placementUnit || currentUser.placementUnit === 'Semua Bagian') return true;
+    return emp.placementUnit === currentUser.placementUnit || emp.unit === currentUser.placementUnit;
+  }
+  if (currentUser.role === 'employee') {
+    return currentUser.username === emp.nip;
+  }
+  return false;
+};
+
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -243,10 +276,12 @@ export default function App() {
   const [employeeFormData, setEmployeeFormData] = useState<Employee | null>(null);
   const [tempSettings, setTempSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const kopInputRef = useRef<HTMLInputElement>(null);
   const importInputRef = useRef<HTMLInputElement>(null);
 
   // Search & Pagination State
   const [searchTerm, setSearchTerm] = useState('');
+  const [unitFilter, setUnitFilter] = useState<string>('all');
   const [currentPage, setCurrentPage] = useState(1);
   const ITEMS_PER_PAGE = 10;
 
@@ -263,98 +298,39 @@ export default function App() {
 
   // --- DATABASE LOGIC ---
   const fetchData = async () => {
-    if (!supabase) return;
     try {
-      const { data: empData, error: empErr } = await supabase.from('employees').select('*').order('created_at', { ascending: false });
-      if (empErr) console.error("Error fetch employees:", empErr);
-      if (empData) {
-        setEmployees(empData.map(mapDbToEmployee));
-      }
+      setDbStatus('checking');
+      const q = query(collection(db, 'employees'), orderBy('createdAt', 'desc'));
+      const querySnapshot = await getDocs(q);
+      const emps: Employee[] = [];
+      querySnapshot.forEach((docSnap) => {
+        emps.push(mapDbToEmployee(docSnap.data()));
+      });
+      setEmployees(emps);
 
-      const { data: setData, error: setErr } = await supabase.from('settings').select('*').eq('id', 1).maybeSingle();
-      if (setErr) console.error("Error fetch settings:", setErr);
-      if (setData) {
-        const mappedSettings = mapDbToSettings(setData);
+      const settingsDoc = await getDoc(doc(db, 'settings', 'main'));
+      if (settingsDoc.exists()) {
+        const mappedSettings = mapDbToSettings(settingsDoc.data());
         setSettings(mappedSettings);
         setTempSettings(mappedSettings);
       }
-    } catch (err) {
-      console.error("Fetch Data Crash:", err);
-    }
-  };
-
-  const connectDB = async (url: string, key: string, saveToStorage: boolean = false) => {
-    if (!url || !key) {
-      setDbStatus('not_configured');
-      return;
-    }
-    
-    setDbStatus('checking');
-    setDbErrorMessage('');
-
-    try {
-      new URL(url); 
-      const client = createClient(url, key);
-      const { error } = await client.from('settings').select('id').limit(1);
-      
-      if (error && error.code !== 'PGRST116' && error.code !== '42P01') {
-        throw error;
-      }
-
-      supabase = client;
       setDbStatus('connected');
-      
-      if (saveToStorage) {
-        localStorage.setItem('SB_URL', url);
-        localStorage.setItem('SB_KEY', key);
-        setConfigSource('manual');
-      }
-      
-      fetchData();
     } catch (err: any) {
-      console.error("Connection Failed:", err);
+      console.error("Fetch Data Crash:", err);
       setDbStatus('error');
-      
-      let msg = 'Gagal terhubung. Pastikan URL dan Key benar.';
-      if (err) {
-        if (typeof err === 'string') msg = err;
-        else if (err.message) msg = err.message;
-        else if (err.error_description) msg = err.error_description;
-        else msg = JSON.stringify(err);
-      }
-      setDbErrorMessage(msg);
+      setDbErrorMessage(err.message);
     }
   };
 
   const handleManualConnect = (e: React.FormEvent) => {
     e.preventDefault();
-    connectDB(inputDbUrl, inputDbKey, true);
   };
 
   const handleDisconnect = () => {
-    if(confirm("Apakah Anda yakin ingin memutus koneksi database manual ini?")) {
-      supabase = null;
-      localStorage.removeItem('SB_URL');
-      localStorage.removeItem('SB_KEY');
-      setInputDbUrl('');
-      setInputDbKey('');
-      setDbStatus('not_configured');
-      setConfigSource('none');
-    }
   };
 
   useEffect(() => {
-    const config = getSupabaseConfig();
-    
-    if (config.url && config.key) {
-      setInputDbUrl(config.url);
-      setInputDbKey(config.key);
-      setConfigSource(config.source as 'env' | 'manual');
-      connectDB(config.url, config.key, false);
-    } else {
-      setDbStatus('not_configured');
-      setConfigSource('none');
-    }
+    fetchData();
   }, []);
 
   // Update Favicon based on Settings
@@ -379,21 +355,21 @@ export default function App() {
   // --- HANDLERS ---
   const handleSaveEmployeeAdmin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!supabase) return alert("Database tidak terhubung!");
     setIsSaving(true);
     
     const targetEmployee = {
       ...editingEmployee,
       id: editingEmployee.id || Math.random().toString(36).substr(2, 9),
       status: editingEmployee.status || 'pending',
-      created_at: new Date().toISOString()
     } as Employee;
 
-    const dbPayload = mapEmployeeToDb(targetEmployee);
+    const dbPayload = {
+      ...mapEmployeeToDb(targetEmployee),
+      createdAt: new Date().toISOString()
+    };
 
     try {
-      const { error } = await supabase.from('employees').upsert(dbPayload);
-      if (error) throw error;
+      await setDoc(doc(db, 'employees', targetEmployee.id), dbPayload);
       
       await fetchData();
       setIsModalOpen(false);
@@ -407,7 +383,6 @@ export default function App() {
 
   const handleEmployeeSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!supabase) return alert("Database tidak terhubung!");
     if (!editingEmployee.id) return;
 
     setIsSaving(true);
@@ -417,11 +392,13 @@ export default function App() {
       status: 'pending' 
     } as Employee;
 
-    const dbPayload = mapEmployeeToDb(targetEmployee);
+    const dbPayload = {
+      ...mapEmployeeToDb(targetEmployee),
+      createdAt: new Date().toISOString()
+    };
 
     try {
-      const { error } = await supabase.from('employees').upsert(dbPayload);
-      if (error) throw error;
+      await setDoc(doc(db, 'employees', targetEmployee.id), dbPayload);
       
       setEmployees(prev => prev.map(emp => emp.id === targetEmployee.id ? targetEmployee : emp));
       setEditingEmployee(targetEmployee);
@@ -443,23 +420,13 @@ export default function App() {
       status: 'verified_by_employee'
     } as Employee;
 
-    // Jika Supabase tidak terkoneksi, lakukan Mock untuk demo UI
-    if (!supabase) {
-       await new Promise(resolve => setTimeout(resolve, 1500)); // Simulasi delay
-       setEmployees(prev => prev.map(emp => emp.id === targetEmployee.id ? targetEmployee : emp));
-       setEditingEmployee(targetEmployee);
-       setIsEmployeeEditing(false);
-       setIsSaving(false);
-       setIsEmployeeApproveModalOpen(false); // Close modal
-       alert("Data berhasil disetujui (Mode Demo).");
-       return;
-    }
-
-    const dbPayload = mapEmployeeToDb(targetEmployee);
+    const dbPayload = {
+      ...mapEmployeeToDb(targetEmployee),
+      createdAt: new Date().toISOString()
+    };
 
     try {
-      const { error } = await supabase.from('employees').upsert(dbPayload);
-      if (error) throw error;
+      await setDoc(doc(db, 'employees', targetEmployee.id), dbPayload);
       
       setEmployees(prev => prev.map(emp => emp.id === targetEmployee.id ? targetEmployee : emp));
       setEditingEmployee(targetEmployee);
@@ -475,8 +442,13 @@ export default function App() {
 
   // Verifikator Approval
   const handleVerifikatorApprove = async () => {
-    if (!supabase) return alert("Database tidak terhubung!");
     if (!previewEmployee) return;
+
+    if (!canUserVerifyEmployee(user, previewEmployee)) {
+      alert(`Akses Ditolak: Akun Anda (${user?.placementUnit || 'Verifikator'}) hanya berwenang memverifikasi pegawai dari ${user?.placementUnit}. Pegawai ini berada di ${previewEmployee.placementUnit || previewEmployee.unit || 'Bagian lain'}.`);
+      setIsVerifyConfirmOpen(false);
+      return;
+    }
 
     setIsSaving(true);
     
@@ -486,11 +458,13 @@ export default function App() {
       status: 'approved'
     } as Employee;
 
-    const dbPayload = mapEmployeeToDb(targetEmployee);
+    const dbPayload = {
+      ...mapEmployeeToDb(targetEmployee),
+      createdAt: new Date().toISOString()
+    };
 
     try {
-      const { error } = await supabase.from('employees').upsert(dbPayload);
-      if (error) throw error;
+      await setDoc(doc(db, 'employees', targetEmployee.id), dbPayload);
       
       setEmployees(prev => prev.map(emp => emp.id === targetEmployee.id ? targetEmployee : emp));
       setPreviewEmployee(targetEmployee); // Update preview state
@@ -511,7 +485,6 @@ export default function App() {
   };
 
   const executeStatusChange = async () => {
-    if (!supabase) return alert("Database tidak terhubung!");
     if (!statusTargetEmployee) return;
 
     setIsSaving(true);
@@ -520,11 +493,13 @@ export default function App() {
       status: newStatus as any
     };
 
-    const dbPayload = mapEmployeeToDb(targetEmployee);
+    const dbPayload = {
+      ...mapEmployeeToDb(targetEmployee),
+      createdAt: new Date().toISOString()
+    };
 
     try {
-       const { error } = await supabase.from('employees').upsert(dbPayload);
-       if (error) throw error;
+       await setDoc(doc(db, 'employees', targetEmployee.id), dbPayload);
 
        setEmployees(prev => prev.map(emp => emp.id === targetEmployee.id ? targetEmployee : emp));
        setIsStatusModalOpen(false);
@@ -644,6 +619,10 @@ export default function App() {
   };
 
   const handlePrintVerificationClick = (emp: Employee) => {
+    if (!canUserPrintVerification(user, emp)) {
+      alert(`Akses Ditolak: Anda hanya berwenang mencetak lembar verifikasi untuk pegawai dari Bagian ${user?.placementUnit || 'Anda'}.`);
+      return;
+    }
     setPrintVerifyTarget(emp);
     // Set default values based on logged in user or reset
     setVerifyFormData({
@@ -712,14 +691,12 @@ export default function App() {
 
   const handleSaveSettings = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!supabase) return alert("Database tidak terhubung!");
     setIsSaving(true);
     
     const dbPayload = mapSettingsToDb(tempSettings);
 
     try {
-      const { error } = await supabase.from('settings').upsert({ id: 1, ...dbPayload });
-      if (error) throw error;
+      await setDoc(doc(db, 'settings', 'main'), dbPayload);
       setSettings(tempSettings);
       alert('Pengaturan instansi berhasil disimpan!');
     } catch (err: any) {
@@ -740,6 +717,17 @@ export default function App() {
     }
   };
 
+  const handleKopUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setTempSettings(prev => ({ ...prev, kopImageUrl: reader.result as string }));
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
   const handleDownloadTemplate = () => {
     const headers = [{ "NIP": "199001012022011001", "Nama Lengkap": "Contoh Nama Pegawai", "Tempat Lahir": "Demak", "Tanggal Lahir (YYYY-MM-DD)": "1990-01-01", "Pendidikan": "S-1 Teknik Informatika", "Alamat": "Jl. Contoh No. 1, Demak", "Jabatan": "Pranata Komputer", "Unit Kerja": "Sekretariat Daerah", "Nomor Perjanjian": "001", "Gaji Pokok": "2500000", "Unit Penempatan": "Bagian Organisasi" }];
     const ws = XLSX.utils.json_to_sheet(headers);
@@ -749,7 +737,6 @@ export default function App() {
   };
 
   const handleImportExcel = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!supabase) return alert("Database tidak terhubung!");
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -798,8 +785,13 @@ export default function App() {
            return;
         }
 
-        const { error } = await supabase.from('employees').upsert(validData, { onConflict: 'nip' });
-        if (error) throw error;
+        const batch = writeBatch(db);
+        validData.forEach(emp => {
+          const empRef = doc(db, 'employees', emp.id);
+          batch.set(empRef, { ...emp, createdAt: new Date().toISOString() });
+        });
+
+        await batch.commit();
         
         alert(`Berhasil mengimpor ${validData.length} data pegawai!`);
         if (importInputRef.current) importInputRef.current.value = "";
@@ -821,11 +813,10 @@ export default function App() {
   };
 
   const executeDeleteEmployee = async () => {
-    if (!deleteTargetId || !supabase) return;
+    if (!deleteTargetId) return;
     setIsSaving(true);
     try {
-      const { error } = await supabase.from('employees').delete().eq('id', deleteTargetId);
-      if (error) throw error;
+      await deleteDoc(doc(db, 'employees', deleteTargetId));
       setEmployees(employees.filter(e => e.id !== deleteTargetId));
       setIsDeleteModalOpen(false);
       setDeleteTargetId(null);
@@ -838,12 +829,23 @@ export default function App() {
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    if (username === 'admin' && password === 'admin') {
+    const cleanUsername = username.trim().toLowerCase();
+    setLoginError('');
+
+    if (cleanUsername === 'admin' && password === 'admin') {
       setUser({ username: 'admin', role: 'admin', name: 'Administrator' });
       setView('dashboard');
-    } else if (username === 'verifikator' && password === 'verifikator') {
-      setUser({ username: 'verifikator', role: 'verifikator', name: 'Verifikator Kepegawaian' });
+      setUnitFilter('all');
+    } else if (VERIFIKATOR_ACCOUNTS[cleanUsername] && (password === username || password === 'verifikator' || password === 'admin')) {
+      const vAcc = VERIFIKATOR_ACCOUNTS[cleanUsername];
+      setUser({ 
+        username: cleanUsername, 
+        role: 'verifikator', 
+        name: vAcc.name,
+        placementUnit: vAcc.unit
+      });
       setView('dashboard');
+      setUnitFilter(vAcc.unit === 'Semua Bagian' ? 'all' : vAcc.unit);
     } else {
       const found = employees.find(emp => emp.nip === username && emp.nip === password);
       if (found) {
@@ -852,7 +854,7 @@ export default function App() {
         setEditingEmployee({...found});
         setIsEmployeeEditing(false);
       } else {
-        setLoginError('NIP atau Password salah');
+        setLoginError('NIP, Username, atau Password salah');
       }
     }
   };
@@ -877,7 +879,7 @@ export default function App() {
             ) : (
               <FileText size={48} className="mx-auto text-indigo-600 mb-4" />
             )}
-            <h2 className="text-xl font-bold uppercase tracking-tight text-gray-900">LOGIN PEGAWAI</h2>
+            <h2 className="text-xl font-bold uppercase tracking-tight text-gray-900">LOGIN APLIKASI</h2>
             <p className="text-sm text-gray-500 mt-2">{settings.opdName}</p>
           </div>
           <form onSubmit={handleLogin} className="space-y-4">
@@ -885,25 +887,37 @@ export default function App() {
             
             <InputField 
               type="text" 
-              label="NIP (Nomor Induk Pegawai)"
-              placeholder="Masukkan 18 digit NIP tanpa spasi" 
+              label="Username / NIP"
+              placeholder="NIP Pegawai / Username Verifikator" 
               value={username} 
               onChange={(e: any) => setUsername(e.target.value)} 
             />
             
             <InputField 
               type="password" 
-              label="Password (NIP)"
-              placeholder="Masukkan NIP sebagai password" 
+              label="Password"
+              placeholder="Masukkan password Anda" 
               value={password} 
               onChange={(e: any) => setPassword(e.target.value)} 
             />
 
             <div className="bg-blue-50 border border-blue-100 p-4 rounded-lg flex items-start gap-3 mt-4">
               <Info className="text-blue-600 shrink-0 mt-0.5" size={18} />
-              <div className="text-xs text-blue-800">
-                <p className="font-bold mb-1">Informasi Login:</p>
-                <p>Bagi Pegawai, gunakan <strong>NIP</strong> Anda sebagai Username dan Password untuk login pertama kali.</p>
+              <div className="text-xs text-blue-800 space-y-2">
+                <div>
+                  <p className="font-bold mb-0.5">Pegawai (PPPK):</p>
+                  <p>Gunakan <strong>NIP</strong> Anda sebagai Username & Password.</p>
+                </div>
+                <div>
+                  <p className="font-bold mb-0.5">Role Admin & Verifikator:</p>
+                  <ul className="list-disc pl-4 space-y-0.5">
+                    <li><strong>Admin:</strong> <code className="bg-blue-100 px-1 rounded">admin</code> / <code className="bg-blue-100 px-1 rounded">admin</code></li>
+                    <li><strong>Verifikator Utama:</strong> <code className="bg-blue-100 px-1 rounded">verifikator</code> / <code className="bg-blue-100 px-1 rounded">verifikator</code></li>
+                    <li><strong>Verifikator Bagian Umum:</strong> <code className="bg-blue-100 px-1 rounded">verifikator_umum</code></li>
+                    <li><strong>Verifikator Bagian Hukum:</strong> <code className="bg-blue-100 px-1 rounded">verifikator_hukum</code></li>
+                    <li><strong>Bagian Lainnya:</strong> <code className="bg-blue-100 px-1 rounded">verifikator_[nama_bagian]</code></li>
+                  </ul>
+                </div>
               </div>
             </div>
 
@@ -915,16 +929,22 @@ export default function App() {
     );
   }
 
+  // --- SCOPED EMPLOYEES BASED ON USER ROLE ---
+  const scopedEmployees = (user?.role === 'verifikator' && user.placementUnit && user.placementUnit !== 'Semua Bagian')
+    ? employees.filter(e => e.placementUnit === user.placementUnit || e.unit === user.placementUnit)
+    : employees;
+
   // --- STATISTIK DASHBOARD ---
-  const countPending = employees.filter(e => e.status === 'pending').length;
-  const countVerified = employees.filter(e => e.status === 'verified_by_employee').length;
-  const countApproved = employees.filter(e => e.status === 'approved').length;
+  const countPending = scopedEmployees.filter(e => e.status === 'pending').length;
+  const countVerified = scopedEmployees.filter(e => e.status === 'verified_by_employee').length;
+  const countApproved = scopedEmployees.filter(e => e.status === 'approved').length;
 
   // --- FILTER & PAGINATION LOGIC ---
-  const filteredEmployees = employees.filter(emp => 
-    emp.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-    emp.nip.includes(searchTerm)
-  );
+  const filteredEmployees = employees.filter(emp => {
+    const matchesSearch = emp.name.toLowerCase().includes(searchTerm.toLowerCase()) || emp.nip.includes(searchTerm);
+    const matchesUnit = unitFilter === 'all' ? true : (emp.placementUnit === unitFilter || emp.unit === unitFilter);
+    return matchesSearch && matchesUnit;
+  });
 
   const totalPages = Math.ceil(filteredEmployees.length / ITEMS_PER_PAGE);
   const paginatedEmployees = filteredEmployees.slice(
@@ -950,7 +970,7 @@ export default function App() {
             {settings.logoUrl && <img src={settings.logoUrl} className="h-16 mb-4 object-contain" />}
             <span className="font-bold text-xl tracking-tight">SIPERJAKA</span>
             <p className="text-[10px] text-gray-400 uppercase mt-2 px-2 leading-relaxed tracking-wider">{settings.opdName}</p>
-            <span className="text-[10px] bg-slate-800 px-2 py-0.5 rounded mt-2 text-slate-300 border border-slate-700 uppercase">{user.role}</span>
+            <span className="text-[10px] bg-slate-800 px-2.5 py-1 rounded mt-2 text-indigo-300 border border-slate-700 uppercase font-bold tracking-wider">{user.role === 'admin' ? 'ADMINISTRATOR' : `VERIFIKATOR ${user.placementUnit ? `(${user.placementUnit})` : ''}`}</span>
           </div>
           <nav className="p-4 space-y-2 flex-1 overflow-y-auto">
             <div className="px-4 mb-2 text-[10px] font-bold text-slate-500 uppercase tracking-wider">Menu Utama</div>
@@ -1220,16 +1240,29 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Search Bar */}
-              <div className="relative w-full md:w-72">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" size={18} />
-                <input 
-                  type="text" 
-                  placeholder="Cari Nama atau NIP..." 
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2.5 rounded-lg border border-gray-300 bg-white text-black focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-sm transition text-sm font-medium"
-                />
+              {/* Search & Filter Bar */}
+              <div className="flex flex-col md:flex-row gap-3 items-center justify-between">
+                <div className="relative w-full md:w-72">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" size={18} />
+                  <input 
+                    type="text" 
+                    placeholder="Cari Nama atau NIP..." 
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="w-full pl-10 pr-4 py-2.5 rounded-lg border border-gray-300 bg-white text-black focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-sm transition text-sm font-medium"
+                  />
+                </div>
+
+                <select 
+                  value={unitFilter}
+                  onChange={(e) => { setUnitFilter(e.target.value); setCurrentPage(1); }}
+                  className="w-full md:w-64 py-2.5 px-3 rounded-lg border border-gray-300 bg-white text-black text-sm font-medium focus:ring-2 focus:ring-indigo-500 outline-none shadow-sm"
+                >
+                  <option value="all">Semua Bagian / Unit</option>
+                  {PLACEMENT_UNITS.map(unit => (
+                    <option key={unit} value={unit}>{unit}</option>
+                  ))}
+                </select>
               </div>
 
               <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
@@ -1325,16 +1358,42 @@ export default function App() {
                 </p>
               </div>
 
-              {/* Search Bar */}
-              <div className="relative w-full md:w-72">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" size={18} />
-                <input 
-                  type="text" 
-                  placeholder="Cari Nama atau NIP..." 
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2.5 rounded-lg border border-gray-300 bg-white text-black focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-sm transition text-sm font-medium"
-                />
+              {/* Info banner untuk Verifikator Bagian */}
+              {user.role === 'verifikator' && user.placementUnit && user.placementUnit !== 'Semua Bagian' && (
+                <div className="bg-indigo-50 border border-indigo-200 text-indigo-900 p-4 rounded-xl text-xs md:text-sm font-medium flex flex-col md:flex-row items-start md:items-center justify-between gap-2 shadow-sm">
+                  <div className="flex items-center gap-2">
+                    <ShieldCheck className="text-indigo-600 shrink-0" size={20} />
+                    <span>Akun Verifikator: <strong>{user.placementUnit}</strong></span>
+                  </div>
+                  <span className="text-indigo-700 bg-indigo-100/80 px-2.5 py-1 rounded-md text-xs font-bold">
+                    Hanya berwenang memverifikasi pegawai Bagian {user.placementUnit}
+                  </span>
+                </div>
+              )}
+
+              {/* Search & Filter Bar */}
+              <div className="flex flex-col md:flex-row gap-3 items-center justify-between">
+                <div className="relative w-full md:w-72">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" size={18} />
+                  <input 
+                    type="text" 
+                    placeholder="Cari Nama atau NIP..." 
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="w-full pl-10 pr-4 py-2.5 rounded-lg border border-gray-300 bg-white text-black focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-sm transition text-sm font-medium"
+                  />
+                </div>
+
+                <select 
+                  value={unitFilter}
+                  onChange={(e) => { setUnitFilter(e.target.value); setCurrentPage(1); }}
+                  className="w-full md:w-64 py-2.5 px-3 rounded-lg border border-gray-300 bg-white text-black text-sm font-medium focus:ring-2 focus:ring-indigo-500 outline-none shadow-sm"
+                >
+                  <option value="all">Semua Bagian / Unit</option>
+                  {PLACEMENT_UNITS.map(unit => (
+                    <option key={unit} value={unit}>{unit}</option>
+                  ))}
+                </select>
               </div>
               
               <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
@@ -1344,7 +1403,7 @@ export default function App() {
                       <tr>
                         <th className="p-4 text-xs font-bold text-gray-500 uppercase tracking-wide">Nama / NIP</th>
                         <th className="p-4 text-xs font-bold text-gray-500 uppercase tracking-wide">Jabatan</th>
-                        <th className="p-4 text-xs font-bold text-gray-500 uppercase tracking-wide">No. Kontrak</th>
+                        <th className="p-4 text-xs font-bold text-gray-500 uppercase tracking-wide">Bagian / Unit</th>
                         <th className="p-4 text-xs font-bold text-gray-500 uppercase tracking-wide">Status</th>
                         <th className="p-4 text-xs font-bold text-gray-500 uppercase tracking-wide text-right">Aksi</th>
                       </tr>
@@ -1357,7 +1416,11 @@ export default function App() {
                             <div className="text-xs font-mono text-gray-500 mt-0.5">{emp.nip}</div>
                           </td>
                           <td className="p-4 text-sm text-gray-700">{emp.position}</td>
-                          <td className="p-4 text-sm text-gray-700">{emp.agreementNumber}</td>
+                          <td className="p-4 text-sm text-gray-700">
+                            <span className="bg-slate-100 text-slate-800 px-2.5 py-1 rounded-md text-xs font-semibold border border-slate-200 inline-block">
+                              {emp.placementUnit || emp.unit || '-'}
+                            </span>
+                          </td>
                           <td className="p-4">
                              <div className="flex items-center">
                                <span className={`px-2.5 py-1 rounded-full text-xs font-bold border flex items-center 
@@ -1370,8 +1433,13 @@ export default function App() {
                              </div>
                           </td>
                           <td className="p-4 text-right">
-                             <div className="flex justify-end gap-2">
-                               {emp.status !== 'pending' && (
+                             <div className="flex justify-end gap-2 items-center">
+                               {(user.role === 'verifikator' || user.role === 'admin') && emp.status === 'verified_by_employee' && canUserVerifyEmployee(user, emp) && (
+                                 <button onClick={() => setPreviewEmployee(emp)} className="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1 transition shadow-sm">
+                                   <Check size={14}/> Verifikasi
+                                 </button>
+                               )}
+                               {emp.status !== 'pending' && canUserPrintVerification(user, emp) && (
                                  <button onClick={() => handlePrintVerificationClick(emp)} className="text-gray-400 hover:text-indigo-600 transition p-2 hover:bg-indigo-50 rounded-full" title="Cetak Lembar Verifikasi">
                                    <ClipboardCheck size={20} />
                                  </button>
@@ -1436,74 +1504,6 @@ export default function App() {
                   <p className="text-gray-500 text-sm">Konfigurasi instansi dan koneksi database</p>
                </div>
                
-               {/* 1. Database Configuration */}
-               <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
-                  <div className="p-6 border-b border-gray-100 bg-gray-50/50 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                     <div>
-                       <h3 className="font-bold text-gray-900 flex items-center"><Database className="mr-2 text-indigo-600" size={20}/> Koneksi Database</h3>
-                       <p className="text-xs text-gray-500 mt-1">Status saat ini: 
-                          <span className={`font-bold ml-1 ${dbStatus === 'connected' ? 'text-green-600' : 'text-red-600'}`}>
-                             {dbStatus === 'connected' ? 'TERHUBUNG' : dbStatus === 'checking' ? 'MEMERIKSA...' : 'TERPUTUS'}
-                          </span>
-                       </p>
-                     </div>
-                     {configSource !== 'none' && (
-                       <span className="text-[10px] bg-indigo-50 text-indigo-700 px-3 py-1 rounded-full font-bold border border-indigo-100 uppercase tracking-wide">
-                         Sumber: {configSource === 'env' ? 'Environment' : 'Manual'}
-                       </span>
-                     )}
-                  </div>
-                  
-                  <div className="p-6">
-                    {dbErrorMessage && (
-                      <div className="mb-6 bg-red-50 border border-red-100 text-red-700 p-4 rounded-xl text-sm flex items-start">
-                        <AlertTriangle className="mr-2 shrink-0" size={18}/>
-                        {dbErrorMessage}
-                      </div>
-                    )}
-
-                    {configSource === 'env' ? (
-                       <div className="text-center py-8 text-gray-500 bg-gray-50 rounded-xl border border-dashed">
-                         <Server size={32} className="mx-auto text-gray-300 mb-2"/>
-                         <p>Aplikasi menggunakan konfigurasi dari server (Environment Variables).</p>
-                         <p className="text-xs">Anda tidak perlu mengatur koneksi secara manual.</p>
-                       </div>
-                    ) : (
-                       <form onSubmit={handleManualConnect} className="space-y-4 max-w-2xl">
-                         <InputField 
-                           label="Supabase URL"
-                           placeholder="https://xyz.supabase.co"
-                           value={inputDbUrl}
-                           onChange={(e:any) => setInputDbUrl(e.target.value)}
-                           disabled={dbStatus === 'connected'}
-                         />
-                         <div className="relative">
-                            <InputField 
-                              type={showKey ? "text" : "password"}
-                              label="Supabase Anon Key"
-                              placeholder="eyJhbGciOiJIUzI1NiIsInR..."
-                              value={inputDbKey}
-                              onChange={(e:any) => setInputDbKey(e.target.value)}
-                              disabled={dbStatus === 'connected'}
-                              className="pr-10"
-                            />
-                            <button type="button" onClick={() => setShowKey(!showKey)} className="absolute right-3 top-9 text-gray-400 hover:text-gray-600">
-                              {showKey ? <EyeOff size={18}/> : <Eye size={18}/>}
-                            </button>
-                         </div>
-                         
-                         <div className="pt-2">
-                           {dbStatus !== 'connected' ? (
-                              <button className="bg-indigo-600 text-white font-bold py-2.5 px-6 rounded-lg hover:bg-indigo-700 transition shadow-lg shadow-indigo-200 text-sm">Hubungkan Database</button>
-                           ) : (
-                              <button type="button" onClick={handleDisconnect} className="bg-white border border-red-200 text-red-600 font-bold py-2.5 px-6 rounded-lg hover:bg-red-50 transition text-sm">Putus Koneksi Manual</button>
-                           )}
-                         </div>
-                       </form>
-                    )}
-                  </div>
-               </div>
-
                {/* 2. App Settings */}
                <form onSubmit={handleSaveSettings} className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
                   <div className="p-6 border-b border-gray-100 bg-gray-50/50">
@@ -1530,6 +1530,33 @@ export default function App() {
                         <div>
                           <input type="file" ref={fileInputRef} onChange={handleLogoUpload} className="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 transition cursor-pointer" accept="image/*" />
                           <p className="text-xs text-gray-400 mt-2">Format: PNG, JPG (Max 1MB disarankan)</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-gray-700 mb-2 tracking-wide uppercase">Gambar Kop Surat (Untuk SPMT / Dokumen)</label>
+                      <div className="flex flex-col sm:flex-row items-start sm:items-center gap-6 p-4 border border-gray-200 rounded-xl bg-gray-50">
+                        {tempSettings.kopImageUrl ? (
+                          <div className="relative group shrink-0">
+                            <img src={tempSettings.kopImageUrl} alt="Preview Kop Surat" className="h-24 max-w-[280px] object-contain bg-white rounded-lg shadow-sm p-2 border" />
+                            <button 
+                              type="button" 
+                              onClick={() => setTempSettings(prev => ({ ...prev, kopImageUrl: '' }))} 
+                              className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600 shadow"
+                              title="Hapus Gambar Kop Surat"
+                            >
+                              <X size={14} />
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="h-24 w-48 bg-gray-200 rounded-lg flex items-center justify-center text-gray-400 text-xs font-semibold text-center p-2">
+                            Belum Ada Gambar Kop Surat (Gunakan Teks Bawaan)
+                          </div>
+                        )}
+                        <div className="flex-1">
+                          <input type="file" ref={kopInputRef} onChange={handleKopUpload} className="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 transition cursor-pointer" accept="image/*" />
+                          <p className="text-xs text-gray-500 mt-2">Upload file gambar Kop Surat resmi yang sudah menyatu dengan logo dan garis batas. Jika diisi, gambar ini akan digunakan sebagai Kop Surat pada dokumen SPMT.</p>
                         </div>
                       </div>
                     </div>
@@ -1711,10 +1738,10 @@ export default function App() {
                      </div>
                    )}
                    
-                   {/* Tombol Verifikasi hanya muncul jika verified_by_employee */}
-                   {user.role === 'verifikator' && previewEmployee.status === 'verified_by_employee' && (
+                   {/* Tombol Verifikasi hanya muncul jika status verified_by_employee dan user berhak memverifikasi */}
+                   {(user.role === 'verifikator' || user.role === 'admin') && previewEmployee.status === 'verified_by_employee' && canUserVerifyEmployee(user, previewEmployee) && (
                       <button onClick={() => setIsVerifyConfirmOpen(true)} className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-2.5 rounded-lg font-bold flex items-center shadow-sm transition">
-                        <Check size={18} className="mr-2"/> Verifikasi
+                        <Check size={18} className="mr-2"/> Verifikasi Data Bagian Ini
                       </button>
                    )}
 
@@ -1722,9 +1749,12 @@ export default function App() {
                    {previewEmployee.status === 'approved' && (
                      <>
                        {/* Cetak Verifikasi hanya jika Verifikator/Admin dan sudah diapprove */}
-                       <button onClick={() => handlePrintVerificationClick(previewEmployee)} className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2.5 rounded-lg font-bold flex items-center shadow-sm transition">
-                          <ClipboardCheck size={18} className="mr-2"/> Verif
-                       </button>
+                       {canUserPrintVerification(user, previewEmployee) && (
+                          <button onClick={() => handlePrintVerificationClick(previewEmployee)} className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2.5 rounded-lg font-bold flex items-center shadow-sm transition">
+                             <ClipboardCheck size={18} className="mr-2"/> Verif
+                          </button>
+                        )}
+                        
 
                        <button onClick={() => handlePrintSPMT(previewEmployee)} className="bg-sky-600 hover:bg-sky-700 text-white px-4 py-2.5 rounded-lg font-bold flex items-center shadow-sm transition">
                           <Briefcase size={18} className="mr-2"/> SPMT

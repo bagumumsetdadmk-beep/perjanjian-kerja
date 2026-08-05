@@ -4,11 +4,13 @@ export interface User {
   username: string;
   role: Role;
   name: string;
+  placementUnit?: string; // Unit Penempatan / Bagian untuk verifikator
 }
 
 export interface AppSettings {
   signatureDate: string;
   logoUrl: string;
+  kopImageUrl?: string; // Gambar Kop Surat resmi untuk dokumen
   officialName: string; // Nama Pejabat Penandatangan
   officialNip: string;
   officialPosition: string; // Jabatan Pejabat (e.g. Kepala Dinas...)
@@ -44,6 +46,7 @@ export interface Employee {
 export const DEFAULT_SETTINGS: AppSettings = {
   signatureDate: '2025-01-02',
   logoUrl: '', // Will default to an icon if empty
+  kopImageUrl: '',
   officialName: 'H. AHMAD SUGIARTO, S.T., M.T.',
   officialNip: '19700101 199003 1 001',
   officialPosition: 'Sekretaris Daerah',

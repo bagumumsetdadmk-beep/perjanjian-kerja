@@ -27,15 +27,25 @@ export const VerificationDocument: React.FC<VerificationDocumentProps> = ({
     <div className="bg-white p-6 max-w-[210mm] mx-auto font-sans text-black print:p-0 print:max-w-none print:w-full print:mx-0 text-sm leading-tight">
       
       {/* HEADER */}
-      <div className="border-b-2 border-black pb-3 mb-4 flex items-center justify-between">
-         <div className="flex items-center gap-4">
-            {settings.logoUrl && <img src={settings.logoUrl} alt="Logo" className="h-16" />}
-            <div>
-                <h1 className="font-bold text-lg uppercase">PEMERINTAH KABUPATEN DEMAK</h1>
-                <h2 className="font-bold text-base uppercase">{settings.opdName}</h2>
-            </div>
-         </div>
-      </div>
+      {settings.kopImageUrl ? (
+        <div className="mb-4 text-center">
+          <img 
+            src={settings.kopImageUrl} 
+            alt="Kop Surat Resmi" 
+            className="w-full max-h-[140px] object-contain mx-auto" 
+          />
+        </div>
+      ) : (
+        <div className="border-b-2 border-black pb-3 mb-4 flex items-center justify-between">
+           <div className="flex items-center gap-4">
+              {settings.logoUrl && <img src={settings.logoUrl} alt="Logo" className="h-16" />}
+              <div>
+                  <h1 className="font-bold text-lg uppercase">PEMERINTAH KABUPATEN DEMAK</h1>
+                  <h2 className="font-bold text-base uppercase">{settings.opdName}</h2>
+              </div>
+           </div>
+        </div>
+      )}
 
       <div className="text-center mb-6">
         <h1 className="font-bold text-lg underline">LEMBAR VERIFIKASI DATA KEPEGAWAIAN</h1>
