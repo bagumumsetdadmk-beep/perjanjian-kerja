@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import bgAsnBerakhlak from './src/assets/images/asn_berakhlak_bg_1785981972790.jpg';
 import ReactDOM from 'react-dom/client';
 import { 
   Users, 
@@ -46,7 +47,7 @@ import {
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { initializeApp } from 'firebase/app';
-import { getFirestore, collection, getDocs, doc, setDoc, deleteDoc, query, orderBy, getDoc, writeBatch } from 'firebase/firestore';
+import { initializeFirestore, collection, getDocs, doc, setDoc, deleteDoc, query, orderBy, getDoc, writeBatch } from 'firebase/firestore';
 import { User, Employee, AppSettings, DEFAULT_SETTINGS } from './types.ts';
 import { ContractDocument } from './components/ContractDocument.tsx';
 import { VerificationDocument } from './components/VerificationDocument.tsx';
@@ -55,7 +56,9 @@ import { SpmtDocument } from './components/SpmtDocument.tsx';
 // --- FIREBASE INITIALIZATION ---
 import firebaseConfig from './firebase-applet-config.json';
 const app = initializeApp(firebaseConfig);
-const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
+const db = initializeFirestore(app, {
+  experimentalAutoDetectLongPolling: true,
+}, firebaseConfig.firestoreDatabaseId);
 
 // --- MAPPING HELPERS ---
 const sanitizeForFirestore = (obj: Record<string, any>) => {
@@ -159,23 +162,175 @@ const formatNumber = (value: string): string => {
   return raw.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
 };
 
+// --- DATE FORMATTING HELPERS FOR DD/MM/YYYY ---
+const formatDisplayDate = (dateStr: string, separator: string = '/'): string => {
+  if (!dateStr) return '';
+  const str = String(dateStr).trim();
+  // Match YYYY-MM-DD or YYYY/MM/DD
+  const ymd = str.match(/^(\d{4})[\/\-\.](\d{1,2})[\/\-\.](\d{1,2})$/);
+  if (ymd) {
+    const y = ymd[1];
+    const m = ymd[2].padStart(2, '0');
+    const d = ymd[3].padStart(2, '0');
+    return `${d}${separator}${m}${separator}${y}`;
+  }
+  // Match DD-MM-YYYY or DD/MM/YYYY
+  const dmy = str.match(/^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})$/);
+  if (dmy) {
+    const d = dmy[1].padStart(2, '0');
+    const m = dmy[2].padStart(2, '0');
+    const y = dmy[3];
+    return `${d}${separator}${m}${separator}${y}`;
+  }
+  return str;
+};
+
+const parseToIsoDate = (inputStr: string): string => {
+  if (!inputStr) return '';
+  const str = String(inputStr).trim();
+  // Match DD-MM-YYYY, DD/MM/YYYY, DD.MM.YYYY
+  const dmy = str.match(/^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})$/);
+  if (dmy) {
+    const d = dmy[1].padStart(2, '0');
+    const m = dmy[2].padStart(2, '0');
+    const y = dmy[3];
+    return `${y}-${m}-${d}`;
+  }
+  // Match YYYY-MM-DD or YYYY/MM/DD
+  const ymd = str.match(/^(\d{4})[\/\-\.](\d{1,2})[\/\-\.](\d{4}|\d{1,2})$/);
+  if (ymd) {
+    const y = ymd[1];
+    const m = ymd[2].padStart(2, '0');
+    const d = ymd[3].padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }
+  return '';
+};
+
+const getValidIsoForPicker = (val: string): string => {
+  const iso = parseToIsoDate(val);
+  return /^\d{4}-\d{2}-\d{2}$/.test(iso) ? iso : '';
+};
+
+const formatIndonesianLongDate = (dateStr: string): string => {
+  const iso = parseToIsoDate(dateStr);
+  const match = iso.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return dateStr || '';
+  const [_, y, m, d] = match;
+  const monthNames = [
+    "Januari", "Februari", "Maret", "April", "Mei", "Juni",
+    "Juli", "Agustus", "September", "Oktober", "November", "Desember"
+  ];
+  const mIndex = parseInt(m, 10) - 1;
+  if (mIndex >= 0 && mIndex < 12) {
+    return `${parseInt(d, 10)} ${monthNames[mIndex]} ${y}`;
+  }
+  return dateStr;
+};
+
 // UI Components
-const InputField = ({ label, ...props }: any) => (
-  <div className="mb-4">
-    <label className="block text-xs font-bold text-gray-700 mb-1.5 tracking-wide uppercase">{label}</label>
-    <input 
-      {...props} 
-      className={`w-full border border-gray-300 p-3 rounded-lg bg-white text-black focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all shadow-sm ${props.className || ''}`} 
-    />
-  </div>
-);
+const DateInputField = ({ label, value, onChange, disabled, className, ...props }: any) => {
+  const [displayValue, setDisplayValue] = useState(() => formatDisplayDate(value || '', '/'));
+  const dateInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    setDisplayValue(formatDisplayDate(value || '', '/'));
+  }, [value]);
+
+  const handleTextChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const raw = e.target.value;
+    setDisplayValue(raw);
+    const iso = parseToIsoDate(raw);
+    if (onChange) {
+      onChange({ target: { name: props.name, value: iso || raw } });
+    }
+  };
+
+  const handleNativePickerChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const iso = e.target.value; // YYYY-MM-DD
+    if (iso) {
+      setDisplayValue(formatDisplayDate(iso, '/'));
+      if (onChange) {
+        onChange({ target: { name: props.name, value: iso } });
+      }
+    }
+  };
+
+  const formattedIndonesian = formatIndonesianLongDate(value || displayValue);
+
+  return (
+    <div className="mb-4">
+      {label && <label className="block text-xs font-bold text-gray-700 mb-1.5 tracking-wide uppercase">{label}</label>}
+      <div className="relative flex items-center">
+        <input
+          type="text"
+          disabled={disabled}
+          value={displayValue}
+          onChange={handleTextChange}
+          placeholder="dd/mm/yyyy (contoh: 17/08/1990)"
+          className={`w-full border border-gray-300 p-3 pr-10 rounded-lg bg-white text-black focus:ring-2 focus:ring-emerald-600 focus:border-emerald-600 outline-none transition-all shadow-sm ${className || ''}`}
+        />
+        <button
+          type="button"
+          disabled={disabled}
+          onClick={() => {
+            if (dateInputRef.current) {
+              try {
+                if (typeof (dateInputRef.current as any).showPicker === 'function') {
+                  (dateInputRef.current as any).showPicker();
+                } else {
+                  dateInputRef.current.click();
+                }
+              } catch (err) {
+                // Ignore picker restrictions
+              }
+            }
+          }}
+          className="absolute right-3 text-gray-500 hover:text-emerald-700 disabled:opacity-50 transition p-1"
+          title="Buka Kalender"
+        >
+          <Calendar size={18} />
+        </button>
+        <input
+          type="date"
+          ref={dateInputRef}
+          value={getValidIsoForPicker(value || displayValue)}
+          onChange={handleNativePickerChange}
+          className="sr-only absolute opacity-0 pointer-events-none"
+          tabIndex={-1}
+        />
+      </div>
+      {(value || displayValue) && formattedIndonesian && formattedIndonesian !== (value || displayValue) && (
+        <span className="text-[11px] text-emerald-800 font-medium mt-1.5 block">
+          Terbaca: <strong>{formattedIndonesian}</strong> ({formatDisplayDate(value || displayValue, '/')})
+        </span>
+      )}
+    </div>
+  );
+};
+
+const InputField = ({ label, type, ...props }: any) => {
+  if (type === 'date') {
+    return <DateInputField label={label} {...props} />;
+  }
+  return (
+    <div className="mb-4">
+      {label && <label className="block text-xs font-bold text-gray-700 mb-1.5 tracking-wide uppercase">{label}</label>}
+      <input 
+        {...props} 
+        type={type}
+        className={`w-full border border-gray-300 p-3 rounded-lg bg-white text-black focus:ring-2 focus:ring-emerald-600 focus:border-emerald-600 outline-none transition-all shadow-sm ${props.className || ''}`} 
+      />
+    </div>
+  );
+};
 
 const SelectField = ({ label, children, ...props }: any) => (
   <div className="mb-4">
     <label className="block text-xs font-bold text-gray-700 mb-1.5 tracking-wide uppercase">{label}</label>
     <select 
       {...props} 
-      className={`w-full border border-gray-300 p-3 rounded-lg bg-white text-black focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all shadow-sm ${props.className || ''}`}
+      className={`w-full border border-gray-300 p-3 rounded-lg bg-white text-black focus:ring-2 focus:ring-emerald-600 focus:border-emerald-600 outline-none transition-all shadow-sm ${props.className || ''}`}
     >
       {children}
     </select>
@@ -241,6 +396,7 @@ export default function App() {
 
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [loginError, setLoginError] = useState('');
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -300,25 +456,37 @@ export default function App() {
   const fetchData = async () => {
     try {
       setDbStatus('checking');
-      const q = query(collection(db, 'employees'), orderBy('createdAt', 'desc'));
-      const querySnapshot = await getDocs(q);
+      let querySnapshot;
+      try {
+        const q = query(collection(db, 'employees'), orderBy('createdAt', 'desc'));
+        querySnapshot = await getDocs(q);
+      } catch (e) {
+        console.warn("orderBy query failed, falling back to base collection getDocs:", e);
+        querySnapshot = await getDocs(collection(db, 'employees'));
+      }
+
       const emps: Employee[] = [];
       querySnapshot.forEach((docSnap) => {
         emps.push(mapDbToEmployee(docSnap.data()));
       });
       setEmployees(emps);
 
-      const settingsDoc = await getDoc(doc(db, 'settings', 'main'));
-      if (settingsDoc.exists()) {
-        const mappedSettings = mapDbToSettings(settingsDoc.data());
-        setSettings(mappedSettings);
-        setTempSettings(mappedSettings);
+      try {
+        const settingsDoc = await getDoc(doc(db, 'settings', 'main'));
+        if (settingsDoc.exists()) {
+          const mappedSettings = mapDbToSettings(settingsDoc.data());
+          setSettings(mappedSettings);
+          setTempSettings(mappedSettings);
+        }
+      } catch (sErr) {
+        console.warn("Settings fetch warning:", sErr);
       }
+
       setDbStatus('connected');
     } catch (err: any) {
       console.error("Fetch Data Crash:", err);
       setDbStatus('error');
-      setDbErrorMessage(err.message);
+      setDbErrorMessage(err.message || 'Gagal terhubung ke database Firestore');
     }
   };
 
@@ -742,11 +910,85 @@ export default function App() {
 
     setIsImporting(true);
     const reader = new FileReader();
+
+    const parseExcelDate = (val: any): string => {
+      if (!val) return '';
+      if (val instanceof Date) {
+        if (!isNaN(val.getTime())) {
+          const y = val.getFullYear();
+          const m = String(val.getMonth() + 1).padStart(2, '0');
+          const d = String(val.getDate()).padStart(2, '0');
+          return `${y}-${m}-${d}`;
+        }
+      }
+      if (typeof val === 'number') {
+        const dateObj = (XLSX as any).SSF ? (XLSX as any).SSF.parse_date_code(val) : null;
+        if (dateObj) {
+          const y = dateObj.y;
+          const m = String(dateObj.m).padStart(2, '0');
+          const d = String(dateObj.d).padStart(2, '0');
+          return `${y}-${m}-${d}`;
+        }
+        const jsDate = new Date(Math.round((val - 25569) * 86400 * 1000));
+        if (!isNaN(jsDate.getTime())) {
+          const y = jsDate.getUTCFullYear();
+          const m = String(jsDate.getUTCMonth() + 1).padStart(2, '0');
+          const d = String(jsDate.getUTCDate()).padStart(2, '0');
+          return `${y}-${m}-${d}`;
+        }
+      }
+
+      const str = String(val).trim();
+      if (!str) return '';
+
+      // Match YYYY-MM-DD
+      if (/^\d{4}-\d{2}-\d{2}$/.test(str)) return str;
+
+      // Match YYYY/MM/DD
+      if (/^\d{4}\/\d{2}\/\d{2}$/.test(str)) return str.replace(/\//g, '-');
+
+      // Match DD-MM-YYYY or DD/MM/YYYY or DD.MM.YYYY
+      const dmyMatch = str.match(/^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})$/);
+      if (dmyMatch) {
+        const day = dmyMatch[1].padStart(2, '0');
+        const month = dmyMatch[2].padStart(2, '0');
+        const year = dmyMatch[3];
+        return `${year}-${month}-${day}`;
+      }
+
+      // Match YYYY-M-D or similar
+      const ymdMatch = str.match(/^(\d{4})[\/\-\.](\d{1,2})[\/\-\.](\d{1,2})$/);
+      if (ymdMatch) {
+        const year = ymdMatch[1];
+        const month = ymdMatch[2].padStart(2, '0');
+        const day = ymdMatch[3].padStart(2, '0');
+        return `${year}-${month}-${day}`;
+      }
+
+      return str;
+    };
+
+    const getRowVal = (row: any, keys: string[]): any => {
+      for (const k of keys) {
+        if (row[k] !== undefined && row[k] !== null && String(row[k]).trim() !== '') {
+          return row[k];
+        }
+      }
+      const rowKeys = Object.keys(row);
+      for (const k of keys) {
+        const normalizedKey = k.toLowerCase().replace(/[^a-z0-9]/g, '');
+        const foundKey = rowKeys.find(rk => rk.toLowerCase().replace(/[^a-z0-9]/g, '') === normalizedKey);
+        if (foundKey && row[foundKey] !== undefined && row[foundKey] !== null && String(row[foundKey]).trim() !== '') {
+          return row[foundKey];
+        }
+      }
+      return '';
+    };
     
     reader.onload = async (evt) => {
       try {
         const bstr = evt.target?.result;
-        const wb = XLSX.read(bstr, { type: 'binary' });
+        const wb = XLSX.read(bstr, { type: 'binary', cellDates: true });
         const wsname = wb.SheetNames[0];
         const ws = wb.Sheets[wsname];
         const data = XLSX.utils.sheet_to_json(ws);
@@ -758,19 +1000,23 @@ export default function App() {
         }
 
         const employeesToUpsert = data.map((row: any) => {
-          const rawSalary = row["Gaji Pokok"] ? String(row["Gaji Pokok"]) : "0";
+          const rawNip = String(getRowVal(row, ["NIP", "nip"]) || "");
+          const rawSalary = String(getRowVal(row, ["Gaji Pokok", "Gaji", "gaji_pokok"]) || "0");
+          const birthDateRaw = getRowVal(row, ["Tanggal Lahir (YYYY-MM-DD)", "Tanggal Lahir", "Tgl Lahir", "TanggalLahir", "tgl_lahir"]);
+          const parsedBirthDate = parseExcelDate(birthDateRaw);
+
           return mapEmployeeToDb({
-            id: row["NIP"] || Math.random().toString(36).substr(2, 9),
-            nip: row["NIP"] ? String(row["NIP"]) : "",
-            name: row["Nama Lengkap"],
-            placeOfBirth: row["Tempat Lahir"],
-            dateOfBirth: row["Tanggal Lahir (YYYY-MM-DD)"],
-            education: row["Pendidikan"],
-            address: row["Alamat"],
-            position: row["Jabatan"],
-            unit: row["Unit Kerja"],
-            placementUnit: row["Unit Penempatan"] || "",
-            agreementNumber: row["Nomor Perjanjian"] ? String(row["Nomor Perjanjian"]) : "",
+            id: rawNip || Math.random().toString(36).substr(2, 9),
+            nip: rawNip,
+            name: String(getRowVal(row, ["Nama Lengkap", "Nama", "nama_lengkap", "nama"]) || ""),
+            placeOfBirth: String(getRowVal(row, ["Tempat Lahir", "TempatLahir", "tempat_lahir"]) || ""),
+            dateOfBirth: parsedBirthDate,
+            education: String(getRowVal(row, ["Pendidikan", "Pendidikan Terakhir", "pendidikan"]) || ""),
+            address: String(getRowVal(row, ["Alamat", "Alamat Lengkap", "alamat"]) || ""),
+            position: String(getRowVal(row, ["Jabatan", "jabatan"]) || ""),
+            unit: String(getRowVal(row, ["Unit Kerja", "unit_kerja", "UnitKerja"]) || ""),
+            placementUnit: String(getRowVal(row, ["Unit Penempatan", "unit_penempatan", "Penempatan"]) || ""),
+            agreementNumber: String(getRowVal(row, ["Nomor Perjanjian", "No Perjanjian", "nomor_perjanjian"]) || ""),
             salaryAmount: formatNumber(rawSalary),
             salaryText: generateTerbilang(rawSalary),
             status: 'pending'
@@ -871,59 +1117,111 @@ export default function App() {
 
   if (!user) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4 font-sans text-black">
-        <div className="bg-white p-8 rounded-2xl shadow-xl border border-gray-100 w-full max-w-md">
+      <div className="min-h-screen bg-slate-950 relative overflow-hidden flex items-center justify-center p-4 sm:p-6 font-sans antialiased text-slate-800">
+        {/* Background 3D ASN BerAKHLAK Illustration */}
+        <div 
+          className="absolute inset-0 bg-cover bg-center bg-no-repeat opacity-[0.85] scale-100 filter contrast-105 saturate-110 pointer-events-none transition-transform duration-1000"
+          style={{ backgroundImage: `url(${bgAsnBerakhlak})` }}
+        />
+        <div className="absolute inset-0 bg-gradient-to-tr from-slate-950/60 via-slate-900/40 to-slate-950/50 pointer-events-none" />
+
+        {/* Ambient Glow Effects */}
+        <div className="absolute -top-40 -left-40 w-96 h-96 bg-emerald-500/15 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute -bottom-40 -right-40 w-96 h-96 bg-emerald-600/15 rounded-full blur-3xl pointer-events-none" />
+
+        {/* Login Card */}
+        <div className="relative z-10 bg-white/95 backdrop-blur-xl border border-white/20 shadow-2xl rounded-3xl p-8 sm:p-10 w-full max-w-md transition-all duration-300">
+          
+          {/* Header */}
           <div className="text-center mb-8">
             {settings.logoUrl ? (
-              <img src={settings.logoUrl} className="h-20 mx-auto mb-4 object-contain" />
+              <div className="inline-block p-2 bg-emerald-50/50 rounded-2xl border border-emerald-100 mb-3 shadow-sm">
+                <img src={settings.logoUrl} className="h-16 w-auto mx-auto object-contain" alt="Logo Pemkab Demak" />
+              </div>
             ) : (
-              <FileText size={48} className="mx-auto text-indigo-600 mb-4" />
+              <div className="w-16 h-16 bg-gradient-to-tr from-emerald-600 to-indigo-700 text-white rounded-2xl flex items-center justify-center mx-auto mb-3 shadow-lg shadow-emerald-600/30">
+                <ShieldCheck size={32} />
+              </div>
             )}
-            <h2 className="text-xl font-bold uppercase tracking-tight text-gray-900">LOGIN APLIKASI</h2>
-            <p className="text-sm text-gray-500 mt-2">{settings.opdName}</p>
-          </div>
-          <form onSubmit={handleLogin} className="space-y-4">
-            {loginError && <div className="bg-red-50 text-red-600 p-3 rounded-lg text-sm text-center font-medium border border-red-100">{loginError}</div>}
-            
-            <InputField 
-              type="text" 
-              label="Username / NIP"
-              placeholder="NIP Pegawai / Username Verifikator" 
-              value={username} 
-              onChange={(e: any) => setUsername(e.target.value)} 
-            />
-            
-            <InputField 
-              type="password" 
-              label="Password"
-              placeholder="Masukkan password Anda" 
-              value={password} 
-              onChange={(e: any) => setPassword(e.target.value)} 
-            />
 
-            <div className="bg-blue-50 border border-blue-100 p-4 rounded-lg flex items-start gap-3 mt-4">
-              <Info className="text-blue-600 shrink-0 mt-0.5" size={18} />
-              <div className="text-xs text-blue-800 space-y-2">
-                <div>
-                  <p className="font-bold mb-0.5">Pegawai (PPPK):</p>
-                  <p>Gunakan <strong>NIP</strong> Anda sebagai Username & Password.</p>
+            <h1 className="text-2xl font-black text-slate-900 tracking-tight uppercase">SIPERJAKA</h1>
+            <p className="text-xs text-slate-500 font-medium mt-1">
+              Sistem Informasi Perjanjian Kerja & Kepegawaian
+            </p>
+            <p className="text-[11px] text-emerald-700 font-bold uppercase tracking-wide mt-0.5">
+              {settings.opdName || 'Sekretariat Daerah Kabupaten Demak'}
+            </p>
+          </div>
+
+          {/* Form Login */}
+          <form onSubmit={handleLogin} className="space-y-5">
+            {loginError && (
+              <div className="bg-rose-50 text-rose-700 p-3.5 rounded-xl text-xs font-semibold text-center border border-rose-200/80 flex items-center justify-center gap-2">
+                <XCircle size={16} className="shrink-0 text-rose-600" />
+                <span>{loginError}</span>
+              </div>
+            )}
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1.5 tracking-wider uppercase">
+                Username / NIP
+              </label>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                  <UserIcon size={18} />
                 </div>
-                <div>
-                  <p className="font-bold mb-0.5">Role Admin & Verifikator:</p>
-                  <ul className="list-disc pl-4 space-y-0.5">
-                    <li><strong>Admin:</strong> <code className="bg-blue-100 px-1 rounded">admin</code> / <code className="bg-blue-100 px-1 rounded">admin</code></li>
-                    <li><strong>Verifikator Utama:</strong> <code className="bg-blue-100 px-1 rounded">verifikator</code> / <code className="bg-blue-100 px-1 rounded">verifikator</code></li>
-                    <li><strong>Verifikator Bagian Umum:</strong> <code className="bg-blue-100 px-1 rounded">verifikator_umum</code></li>
-                    <li><strong>Verifikator Bagian Hukum:</strong> <code className="bg-blue-100 px-1 rounded">verifikator_hukum</code></li>
-                    <li><strong>Bagian Lainnya:</strong> <code className="bg-blue-100 px-1 rounded">verifikator_[nama_bagian]</code></li>
-                  </ul>
-                </div>
+                <input
+                  type="text"
+                  placeholder="Masukkan NIP atau Username"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  className="w-full pl-11 pr-4 py-3 rounded-xl border border-slate-200 bg-slate-50/50 text-slate-900 text-sm font-medium placeholder:text-slate-400 focus:bg-white focus:ring-2 focus:ring-emerald-600 focus:border-emerald-600 outline-none transition-all shadow-sm"
+                  required
+                />
               </div>
             </div>
 
-            <button className="w-full bg-indigo-600 text-white font-bold py-3 rounded-lg hover:bg-indigo-700 transition shadow-lg shadow-indigo-200 mt-6">MASUK APLIKASI</button>
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1.5 tracking-wider uppercase">
+                Password
+              </label>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                  <Lock size={18} />
+                </div>
+                <input
+                  type={showPassword ? "text" : "password"}
+                  placeholder="Masukkan password Anda"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="w-full pl-11 pr-11 py-3 rounded-xl border border-slate-200 bg-slate-50/50 text-slate-900 text-sm font-medium placeholder:text-slate-400 focus:bg-white focus:ring-2 focus:ring-emerald-600 focus:border-emerald-600 outline-none transition-all shadow-sm"
+                  required
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 hover:text-slate-600 transition-colors"
+                  title={showPassword ? "Sembunyikan password" : "Tampilkan password"}
+                >
+                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
+            </div>
+
+            <button
+              type="submit"
+              className="w-full bg-gradient-to-r from-emerald-700 via-emerald-800 to-indigo-900 hover:from-emerald-800 hover:to-indigo-950 text-white font-bold py-3.5 px-6 rounded-xl transition-all duration-200 shadow-lg shadow-emerald-900/20 hover:shadow-xl active:scale-[0.99] flex items-center justify-center gap-2 text-sm tracking-wide mt-2 cursor-pointer"
+            >
+              <span>MASUK APLIKASI</span>
+              <ChevronRight size={18} />
+            </button>
           </form>
-          <p className="mt-8 text-center text-xs text-gray-400">SIPERJAKA v1.0 &copy; 2025</p>
+
+          {/* Footer Card */}
+          <div className="mt-8 pt-5 border-t border-slate-100 text-center text-[11px] text-slate-400 font-medium">
+            <span>SIPERJAKA V.1.1. 2025-2026</span>
+          </div>
+
         </div>
       </div>
     );
@@ -965,38 +1263,38 @@ export default function App() {
 
       {/* ADMIN & VERIFIKATOR SIDEBAR */}
       {(user.role === 'admin' || user.role === 'verifikator') && (
-        <aside className={`fixed inset-y-0 left-0 z-50 w-72 bg-slate-900 text-white transform transition-transform duration-300 ease-in-out md:relative md:translate-x-0 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} shadow-2xl md:shadow-none flex flex-col`}>
+        <aside className={`fixed inset-y-0 left-0 z-50 w-72 bg-slate-900 text-white transform transition-transform duration-300 ease-in-out md:relative md:translate-x-0 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} shadow-2xl md:shadow-none flex flex-col border-r border-slate-800`}>
           <div className="p-8 border-b border-slate-800 text-center flex flex-col items-center">
             {settings.logoUrl && <img src={settings.logoUrl} className="h-16 mb-4 object-contain" />}
-            <span className="font-bold text-xl tracking-tight">SIPERJAKA</span>
-            <p className="text-[10px] text-gray-400 uppercase mt-2 px-2 leading-relaxed tracking-wider">{settings.opdName}</p>
-            <span className="text-[10px] bg-slate-800 px-2.5 py-1 rounded mt-2 text-indigo-300 border border-slate-700 uppercase font-bold tracking-wider">{user.role === 'admin' ? 'ADMINISTRATOR' : `VERIFIKATOR ${user.placementUnit ? `(${user.placementUnit})` : ''}`}</span>
+            <span className="font-bold text-xl tracking-tight text-white">SIPERJAKA</span>
+            <p className="text-[10px] text-emerald-400 font-medium uppercase mt-2 px-2 leading-relaxed tracking-wider">{settings.opdName}</p>
+            <span className="text-[10px] bg-emerald-950/80 px-2.5 py-1 rounded-full mt-2 text-emerald-300 border border-emerald-800/80 uppercase font-bold tracking-wider">{user.role === 'admin' ? 'ADMINISTRATOR' : `VERIFIKATOR ${user.placementUnit ? `(${user.placementUnit})` : ''}`}</span>
           </div>
           <nav className="p-4 space-y-2 flex-1 overflow-y-auto">
             <div className="px-4 mb-2 text-[10px] font-bold text-slate-500 uppercase tracking-wider">Menu Utama</div>
-            <button onClick={() => { setView('dashboard'); setIsSidebarOpen(false); }} className={`w-full flex items-center p-3.5 rounded-lg text-sm font-medium transition-all ${view === 'dashboard' ? 'bg-indigo-600 shadow-lg shadow-indigo-900/50' : 'hover:bg-slate-800 text-gray-300 hover:text-white'}`}><LayoutDashboard className="mr-3.5" size={20}/> Dashboard</button>
+            <button onClick={() => { setView('dashboard'); setIsSidebarOpen(false); }} className={`w-full flex items-center p-3.5 rounded-xl text-sm font-medium transition-all ${view === 'dashboard' ? 'bg-gradient-to-r from-emerald-700 to-emerald-800 text-white shadow-lg shadow-emerald-950/50' : 'hover:bg-slate-800 text-gray-300 hover:text-white'}`}><LayoutDashboard className="mr-3.5" size={20}/> Dashboard</button>
             
             {user.role === 'admin' && (
                <>
                  <div className="px-4 mb-2 mt-6 text-[10px] font-bold text-slate-500 uppercase tracking-wider">Data & Dokumen</div>
-                 <button onClick={() => { setView('employees'); setIsSidebarOpen(false); }} className={`w-full flex items-center p-3.5 rounded-lg text-sm font-medium transition-all ${view === 'employees' ? 'bg-indigo-600 shadow-lg shadow-indigo-900/50' : 'hover:bg-slate-800 text-gray-300 hover:text-white'}`}><Users className="mr-3.5" size={20}/> Data Pegawai</button>
-                 <button onClick={() => { setView('print'); setIsSidebarOpen(false); }} className={`w-full flex items-center p-3.5 rounded-lg text-sm font-medium transition-all ${view === 'print' ? 'bg-indigo-600 shadow-lg shadow-indigo-900/50' : 'hover:bg-slate-800 text-gray-300 hover:text-white'}`}><Printer className="mr-3.5" size={20}/> Cetak Dokumen</button>
+                 <button onClick={() => { setView('employees'); setIsSidebarOpen(false); }} className={`w-full flex items-center p-3.5 rounded-xl text-sm font-medium transition-all ${view === 'employees' ? 'bg-gradient-to-r from-emerald-700 to-emerald-800 text-white shadow-lg shadow-emerald-950/50' : 'hover:bg-slate-800 text-gray-300 hover:text-white'}`}><Users className="mr-3.5" size={20}/> Data Pegawai</button>
+                 <button onClick={() => { setView('print'); setIsSidebarOpen(false); }} className={`w-full flex items-center p-3.5 rounded-xl text-sm font-medium transition-all ${view === 'print' ? 'bg-gradient-to-r from-emerald-700 to-emerald-800 text-white shadow-lg shadow-emerald-950/50' : 'hover:bg-slate-800 text-gray-300 hover:text-white'}`}><Printer className="mr-3.5" size={20}/> Cetak Dokumen</button>
                  
                  <div className="px-4 mb-2 mt-6 text-[10px] font-bold text-slate-500 uppercase tracking-wider">Sistem</div>
-                 <button onClick={() => { setView('settings'); setIsSidebarOpen(false); }} className={`w-full flex items-center p-3.5 rounded-lg text-sm font-medium transition-all ${view === 'settings' ? 'bg-indigo-600 shadow-lg shadow-indigo-900/50' : 'hover:bg-slate-800 text-gray-300 hover:text-white'}`}><Settings className="mr-3.5" size={20}/> Pengaturan</button>
+                 <button onClick={() => { setView('settings'); setIsSidebarOpen(false); }} className={`w-full flex items-center p-3.5 rounded-xl text-sm font-medium transition-all ${view === 'settings' ? 'bg-gradient-to-r from-emerald-700 to-emerald-800 text-white shadow-lg shadow-emerald-950/50' : 'hover:bg-slate-800 text-gray-300 hover:text-white'}`}><Settings className="mr-3.5" size={20}/> Pengaturan</button>
                </>
             )}
 
             {user.role === 'verifikator' && (
                <>
                  <div className="px-4 mb-2 mt-6 text-[10px] font-bold text-slate-500 uppercase tracking-wider">Verifikasi</div>
-                 <button onClick={() => { setView('print'); setIsSidebarOpen(false); }} className={`w-full flex items-center p-3.5 rounded-lg text-sm font-medium transition-all ${view === 'print' ? 'bg-indigo-600 shadow-lg shadow-indigo-900/50' : 'hover:bg-slate-800 text-gray-300 hover:text-white'}`}><FileCheck className="mr-3.5" size={20}/> Verifikasi Data</button>
+                 <button onClick={() => { setView('print'); setIsSidebarOpen(false); }} className={`w-full flex items-center p-3.5 rounded-xl text-sm font-medium transition-all ${view === 'print' ? 'bg-gradient-to-r from-emerald-700 to-emerald-800 text-white shadow-lg shadow-emerald-950/50' : 'hover:bg-slate-800 text-gray-300 hover:text-white'}`}><FileCheck className="mr-3.5" size={20}/> Verifikasi Data</button>
                </>
             )}
 
           </nav>
           <div className="p-4 border-t border-slate-800">
-            <button onClick={() => setUser(null)} className="w-full flex items-center justify-center p-3 rounded-lg text-red-400 hover:bg-red-950/30 hover:text-red-300 transition-colors font-medium text-sm"><LogOut className="mr-2" size={18}/> Keluar Aplikasi</button>
+            <button onClick={() => setUser(null)} className="w-full flex items-center justify-center p-3 rounded-xl text-rose-400 hover:bg-rose-950/30 hover:text-rose-300 transition-colors font-medium text-sm"><LogOut className="mr-2" size={18}/> Keluar Aplikasi</button>
           </div>
         </aside>
       )}
@@ -1013,15 +1311,18 @@ export default function App() {
 
         {/* HEADER PEGAWAI (NO SIDEBAR) */}
         {user.role === 'employee' && (
-           <header className="bg-slate-900 text-white h-16 flex items-center justify-between px-6 shadow-md shrink-0">
+           <header className="bg-slate-900 text-white h-16 flex items-center justify-between px-6 shadow-md shrink-0 border-b border-slate-800">
               <div className="flex items-center">
                 {settings.logoUrl && <img src={settings.logoUrl} className="h-8 mr-3 bg-white rounded p-0.5" />}
                 <div>
-                  <h1 className="font-bold text-lg leading-tight tracking-tight">SIPERJAKA</h1>
-                  <p className="text-[10px] text-gray-400 uppercase tracking-wide">{settings.opdName}</p>
+                  <h1 className="font-bold text-lg leading-tight tracking-tight flex items-center gap-2">
+                    SIPERJAKA
+                    <span className="text-[10px] bg-emerald-900/80 text-emerald-300 border border-emerald-700/80 px-2 py-0.5 rounded-full font-semibold uppercase">Pegawai</span>
+                  </h1>
+                  <p className="text-[10px] text-emerald-400 uppercase tracking-wide font-medium">{settings.opdName}</p>
                 </div>
               </div>
-              <button onClick={() => setUser(null)} className="flex items-center text-sm font-bold bg-slate-800 hover:bg-slate-700 border border-slate-700 px-4 py-2 rounded-lg transition">
+              <button onClick={() => setUser(null)} className="flex items-center text-sm font-bold bg-slate-800 hover:bg-slate-700 border border-slate-700 px-4 py-2 rounded-xl transition">
                  <LogOut size={16} className="mr-2"/> Keluar
               </button>
            </header>
@@ -1050,7 +1351,7 @@ export default function App() {
               <div className="bg-white rounded-2xl shadow-xl overflow-hidden border border-gray-100">
                 <div className="px-8 py-6 border-b border-gray-100 bg-gray-50/50 flex flex-col md:flex-row justify-between items-center gap-4">
                    <h3 className="font-bold text-xl text-gray-800 flex items-center">
-                      <FileText className="mr-3 text-indigo-600"/> Data Perjanjian Kerja
+                      <FileText className="mr-3 text-emerald-700"/> Data Perjanjian Kerja
                    </h3>
                    <div className="text-xs font-bold px-4 py-1.5 bg-white border border-gray-200 rounded-full text-gray-600 shadow-sm">
                       NIP: {user.username}
@@ -1059,7 +1360,7 @@ export default function App() {
 
                 <form onSubmit={handleEmployeeSave} className="p-8 space-y-8">
                   <div>
-                    <h4 className="text-xs font-bold text-indigo-600 uppercase mb-6 tracking-wider border-b pb-2 flex items-center"><UserIcon size={14} className="mr-2"/> I. Data Identitas</h4>
+                    <h4 className="text-xs font-bold text-emerald-700 uppercase mb-6 tracking-wider border-b pb-2 flex items-center"><UserIcon size={14} className="mr-2"/> I. Data Identitas</h4>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       <InputField label="Nama Lengkap" disabled={!isEmployeeEditing} value={editingEmployee.name || ''} onChange={(e:any) => setEditingEmployee({...editingEmployee, name: e.target.value})} className={!isEmployeeEditing ? "bg-gray-100 text-gray-600" : ""} />
                       <InputField label="NIP" disabled value={editingEmployee.nip || ''} className="bg-gray-100 text-gray-600" />
@@ -1073,7 +1374,7 @@ export default function App() {
                   </div>
 
                   <div>
-                    <h4 className="text-xs font-bold text-indigo-600 uppercase mb-6 tracking-wider border-b pb-2 flex items-center"><LayoutDashboard size={14} className="mr-2"/> II. Data Pekerjaan</h4>
+                    <h4 className="text-xs font-bold text-emerald-700 uppercase mb-6 tracking-wider border-b pb-2 flex items-center"><LayoutDashboard size={14} className="mr-2"/> II. Data Pekerjaan</h4>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       <InputField label="Jabatan" disabled value={editingEmployee.position || ''} className="bg-gray-100 text-gray-600" />
                       <InputField label="Unit Kerja" disabled value={editingEmployee.unit || ''} className="bg-gray-100 text-gray-600" />
@@ -1096,7 +1397,7 @@ export default function App() {
                   </div>
 
                   <div>
-                    <h4 className="text-xs font-bold text-indigo-600 uppercase mb-6 tracking-wider border-b pb-2 flex items-center"><Briefcase size={14} className="mr-2"/> III. Data SK & SPMT</h4>
+                    <h4 className="text-xs font-bold text-emerald-700 uppercase mb-6 tracking-wider border-b pb-2 flex items-center"><Briefcase size={14} className="mr-2"/> III. Data SK & SPMT</h4>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       <InputField label="Nomor SPMT" placeholder="Contoh: 821/..." disabled={true} value={editingEmployee.spmtNumber || ''} onChange={(e:any) => setEditingEmployee({...editingEmployee, spmtNumber: e.target.value})} className="bg-gray-100 text-gray-600" />
                       <InputField type="date" label="Tanggal SPMT (Melaksanakan Tugas)" disabled={!isEmployeeEditing} value={editingEmployee.spmtDate || ''} onChange={(e:any) => setEditingEmployee({...editingEmployee, spmtDate: e.target.value})} className={!isEmployeeEditing ? "bg-white border-gray-300" : "bg-gray-100 text-gray-600"} />
@@ -1112,14 +1413,14 @@ export default function App() {
                     <div className="flex justify-end gap-4 pt-6 border-t border-gray-100">
                       {!isEmployeeEditing ? (
                         <>
-                          <button type="button" onClick={() => setIsEmployeeEditing(true)} className="px-6 py-3 bg-white border border-yellow-500 text-yellow-700 hover:bg-yellow-50 rounded-xl font-bold flex items-center transition shadow-sm">
+                          <button type="button" onClick={() => setIsEmployeeEditing(true)} className="px-6 py-3 bg-white border border-amber-500 text-amber-700 hover:bg-amber-50 rounded-xl font-bold flex items-center transition shadow-sm">
                             <Edit2 size={18} className="mr-2"/> Ajukan Perbaikan Data
                           </button>
                           <button 
                             type="button" 
                             onClick={() => setIsEmployeeApproveModalOpen(true)}
                             disabled={isSaving}
-                            className={`px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold flex items-center transition shadow-lg shadow-indigo-200 ${isSaving ? 'opacity-75 cursor-not-allowed' : ''}`}
+                            className={`px-6 py-3 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl font-bold flex items-center transition shadow-lg shadow-emerald-200 ${isSaving ? 'opacity-75 cursor-not-allowed' : ''}`}
                           >
                             <CheckCircle size={18} className="mr-2"/>
                             Data Sudah Benar
@@ -1130,7 +1431,7 @@ export default function App() {
                           <button type="button" onClick={() => { setIsEmployeeEditing(false); setEditingEmployee({...employeeFormData!}); }} className="px-6 py-3 bg-gray-100 hover:bg-gray-200 text-gray-800 rounded-xl font-bold transition">
                             Batal
                           </button>
-                          <button type="submit" disabled={isSaving} className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold flex items-center transition shadow-lg shadow-indigo-200">
+                          <button type="submit" disabled={isSaving} className="px-6 py-3 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl font-bold flex items-center transition shadow-lg shadow-emerald-200">
                             {isSaving ? <Loader2 className="animate-spin mr-2"/> : <Save size={18} className="mr-2"/>}
                             Simpan Perubahan
                           </button>
@@ -1196,19 +1497,19 @@ export default function App() {
               </div>
 
               {/* Quick Actions */}
-              <div className="bg-gradient-to-r from-indigo-600 to-blue-600 rounded-2xl p-8 text-white shadow-xl shadow-indigo-200">
+              <div className="bg-gradient-to-r from-emerald-800 via-emerald-900 to-indigo-950 rounded-2xl p-8 text-white shadow-xl shadow-emerald-900/20">
                  <div className="flex flex-col md:flex-row justify-between items-center">
                     <div className="mb-4 md:mb-0">
                       <h3 className="text-xl font-bold">Mulai Kelola Data</h3>
-                      <p className="text-indigo-100 opacity-90 mt-1">Import data pegawai dari Excel atau tambahkan secara manual.</p>
+                      <p className="text-emerald-100 opacity-90 mt-1">Import data pegawai dari Excel atau tambahkan secara manual.</p>
                     </div>
                     {user.role === 'admin' && (
-                      <button onClick={() => setView('employees')} className="bg-white text-indigo-600 px-6 py-3 rounded-xl font-bold hover:bg-indigo-50 transition shadow-lg flex items-center">
+                      <button onClick={() => setView('employees')} className="bg-white text-emerald-800 px-6 py-3 rounded-xl font-bold hover:bg-emerald-50 transition shadow-lg flex items-center">
                          Kelola Data Pegawai <ChevronRight className="ml-2" size={18} />
                       </button>
                     )}
                     {user.role === 'verifikator' && (
-                      <button onClick={() => setView('print')} className="bg-white text-indigo-600 px-6 py-3 rounded-xl font-bold hover:bg-indigo-50 transition shadow-lg flex items-center">
+                      <button onClick={() => setView('print')} className="bg-white text-emerald-800 px-6 py-3 rounded-xl font-bold hover:bg-emerald-50 transition shadow-lg flex items-center">
                          Mulai Verifikasi <ChevronRight className="ml-2" size={18} />
                       </button>
                     )}
@@ -1226,15 +1527,15 @@ export default function App() {
                    <p className="text-gray-500 text-sm">Kelola data dan status verifikasi</p>
                 </div>
                 <div className="flex flex-wrap gap-2 justify-end">
-                  <button onClick={handleDownloadTemplate} className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 rounded-lg flex items-center text-sm font-bold shadow-sm transition">
+                  <button onClick={handleDownloadTemplate} className="bg-emerald-700 hover:bg-emerald-800 text-white px-4 py-2.5 rounded-lg flex items-center text-sm font-bold shadow-sm transition">
                     <FileSpreadsheet size={18} className="mr-2"/> Template
                   </button>
-                  <label className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2.5 rounded-lg flex items-center text-sm font-bold cursor-pointer shadow-sm transition">
+                  <label className="bg-emerald-800 hover:bg-emerald-900 text-white px-4 py-2.5 rounded-lg flex items-center text-sm font-bold cursor-pointer shadow-sm transition">
                     {isImporting ? <Loader2 className="animate-spin mr-2"/> : <Upload size={18} className="mr-2"/>}
                     Import Excel
                     <input type="file" ref={importInputRef} onChange={handleImportExcel} accept=".xlsx,.xls" className="hidden"/>
                   </label>
-                  <button onClick={() => { setEditingEmployee({}); setIsModalOpen(true); }} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-lg flex items-center text-sm font-bold shadow-sm transition">
+                  <button onClick={() => { setEditingEmployee({}); setIsModalOpen(true); }} className="bg-emerald-700 hover:bg-emerald-800 text-white px-4 py-2.5 rounded-lg flex items-center text-sm font-bold shadow-sm transition">
                     <Plus size={18} className="mr-2"/> Manual
                   </button>
                 </div>
@@ -1249,14 +1550,14 @@ export default function App() {
                     placeholder="Cari Nama atau NIP..." 
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2.5 rounded-lg border border-gray-300 bg-white text-black focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-sm transition text-sm font-medium"
+                    className="w-full pl-10 pr-4 py-2.5 rounded-lg border border-gray-300 bg-white text-black focus:outline-none focus:ring-2 focus:ring-emerald-600 shadow-sm transition text-sm font-medium"
                   />
                 </div>
 
                 <select 
                   value={unitFilter}
                   onChange={(e) => { setUnitFilter(e.target.value); setCurrentPage(1); }}
-                  className="w-full md:w-64 py-2.5 px-3 rounded-lg border border-gray-300 bg-white text-black text-sm font-medium focus:ring-2 focus:ring-indigo-500 outline-none shadow-sm"
+                  className="w-full md:w-64 py-2.5 px-3 rounded-lg border border-gray-300 bg-white text-black text-sm font-medium focus:ring-2 focus:ring-emerald-600 outline-none shadow-sm"
                 >
                   <option value="all">Semua Bagian / Unit</option>
                   {PLACEMENT_UNITS.map(unit => (
@@ -1329,7 +1630,7 @@ export default function App() {
                        >
                          <ChevronLeft size={18} />
                        </button>
-                       <span className="px-4 py-2 bg-white border border-gray-200 rounded-lg text-sm font-bold text-indigo-600 shadow-sm">
+                       <span className="px-4 py-2 bg-white border border-gray-200 rounded-lg text-sm font-bold text-emerald-700 shadow-sm">
                          {currentPage}
                        </span>
                        <button 
@@ -1360,12 +1661,12 @@ export default function App() {
 
               {/* Info banner untuk Verifikator Bagian */}
               {user.role === 'verifikator' && user.placementUnit && user.placementUnit !== 'Semua Bagian' && (
-                <div className="bg-indigo-50 border border-indigo-200 text-indigo-900 p-4 rounded-xl text-xs md:text-sm font-medium flex flex-col md:flex-row items-start md:items-center justify-between gap-2 shadow-sm">
+                <div className="bg-emerald-50 border border-emerald-200 text-emerald-950 p-4 rounded-xl text-xs md:text-sm font-medium flex flex-col md:flex-row items-start md:items-center justify-between gap-2 shadow-sm">
                   <div className="flex items-center gap-2">
-                    <ShieldCheck className="text-indigo-600 shrink-0" size={20} />
+                    <ShieldCheck className="text-emerald-700 shrink-0" size={20} />
                     <span>Akun Verifikator: <strong>{user.placementUnit}</strong></span>
                   </div>
-                  <span className="text-indigo-700 bg-indigo-100/80 px-2.5 py-1 rounded-md text-xs font-bold">
+                  <span className="text-emerald-800 bg-emerald-100/80 px-2.5 py-1 rounded-md text-xs font-bold border border-emerald-200/60">
                     Hanya berwenang memverifikasi pegawai Bagian {user.placementUnit}
                   </span>
                 </div>
@@ -1380,14 +1681,14 @@ export default function App() {
                     placeholder="Cari Nama atau NIP..." 
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2.5 rounded-lg border border-gray-300 bg-white text-black focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-sm transition text-sm font-medium"
+                    className="w-full pl-10 pr-4 py-2.5 rounded-lg border border-gray-300 bg-white text-black focus:outline-none focus:ring-2 focus:ring-emerald-600 shadow-sm transition text-sm font-medium"
                   />
                 </div>
 
                 <select 
                   value={unitFilter}
                   onChange={(e) => { setUnitFilter(e.target.value); setCurrentPage(1); }}
-                  className="w-full md:w-64 py-2.5 px-3 rounded-lg border border-gray-300 bg-white text-black text-sm font-medium focus:ring-2 focus:ring-indigo-500 outline-none shadow-sm"
+                  className="w-full md:w-64 py-2.5 px-3 rounded-lg border border-gray-300 bg-white text-black text-sm font-medium focus:ring-2 focus:ring-emerald-600 outline-none shadow-sm"
                 >
                   <option value="all">Semua Bagian / Unit</option>
                   {PLACEMENT_UNITS.map(unit => (
@@ -1429,22 +1730,22 @@ export default function App() {
                                    'bg-yellow-50 text-yellow-700 border-yellow-200')}`}>
                                 {emp.status === 'approved' ? <CheckCircle size={12} className="mr-1.5"/> : (emp.status === 'verified_by_employee' ? <UserIcon size={12} className="mr-1.5"/> : <Clock size={12} className="mr-1.5"/>)}
                                 {emp.status === 'approved' ? 'Siap Cetak' : (emp.status === 'verified_by_employee' ? 'Dicek Pegawai' : 'Pending')}
-                              </span>
+                               </span>
                              </div>
                           </td>
                           <td className="p-4 text-right">
                              <div className="flex justify-end gap-2 items-center">
                                {(user.role === 'verifikator' || user.role === 'admin') && emp.status === 'verified_by_employee' && canUserVerifyEmployee(user, emp) && (
-                                 <button onClick={() => setPreviewEmployee(emp)} className="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1 transition shadow-sm">
+                                 <button onClick={() => setPreviewEmployee(emp)} className="bg-emerald-700 hover:bg-emerald-800 text-white px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1 transition shadow-sm">
                                    <Check size={14}/> Verifikasi
                                  </button>
                                )}
                                {emp.status !== 'pending' && canUserPrintVerification(user, emp) && (
-                                 <button onClick={() => handlePrintVerificationClick(emp)} className="text-gray-400 hover:text-indigo-600 transition p-2 hover:bg-indigo-50 rounded-full" title="Cetak Lembar Verifikasi">
+                                 <button onClick={() => handlePrintVerificationClick(emp)} className="text-gray-400 hover:text-emerald-700 transition p-2 hover:bg-emerald-50 rounded-full" title="Cetak Lembar Verifikasi">
                                    <ClipboardCheck size={20} />
                                  </button>
                                )}
-                               <button onClick={() => setPreviewEmployee(emp)} className="text-gray-400 hover:text-indigo-600 transition p-2 hover:bg-indigo-50 rounded-full" title="Lihat Detail & Aksi">
+                               <button onClick={() => setPreviewEmployee(emp)} className="text-gray-400 hover:text-emerald-700 transition p-2 hover:bg-emerald-50 rounded-full" title="Lihat Detail & Aksi">
                                  <Eye size={20} />
                                </button>
                              </div>
@@ -1479,7 +1780,7 @@ export default function App() {
                        >
                          <ChevronLeft size={18} />
                        </button>
-                       <span className="px-4 py-2 bg-white border border-gray-200 rounded-lg text-sm font-bold text-indigo-600 shadow-sm">
+                       <span className="px-4 py-2 bg-white border border-gray-200 rounded-lg text-sm font-bold text-emerald-700 shadow-sm">
                          {currentPage}
                        </span>
                        <button 
@@ -1507,7 +1808,7 @@ export default function App() {
                {/* 2. App Settings */}
                <form onSubmit={handleSaveSettings} className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
                   <div className="p-6 border-b border-gray-100 bg-gray-50/50">
-                     <h3 className="font-bold text-gray-900 flex items-center"><Settings className="mr-2 text-indigo-600" size={20}/> Profil Instansi & Pejabat</h3>
+                     <h3 className="font-bold text-gray-900 flex items-center"><Settings className="mr-2 text-emerald-700" size={20}/> Profil Instansi & Pejabat</h3>
                   </div>
 
                   <div className="p-6 space-y-6">
@@ -1528,7 +1829,7 @@ export default function App() {
                           <div className="h-20 w-20 bg-gray-200 rounded-lg flex items-center justify-center text-gray-400">No Logo</div>
                         )}
                         <div>
-                          <input type="file" ref={fileInputRef} onChange={handleLogoUpload} className="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 transition cursor-pointer" accept="image/*" />
+                          <input type="file" ref={fileInputRef} onChange={handleLogoUpload} className="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-emerald-50 file:text-emerald-800 hover:file:bg-emerald-100 transition cursor-pointer" accept="image/*" />
                           <p className="text-xs text-gray-400 mt-2">Format: PNG, JPG (Max 1MB disarankan)</p>
                         </div>
                       </div>
@@ -1555,14 +1856,14 @@ export default function App() {
                           </div>
                         )}
                         <div className="flex-1">
-                          <input type="file" ref={kopInputRef} onChange={handleKopUpload} className="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 transition cursor-pointer" accept="image/*" />
+                          <input type="file" ref={kopInputRef} onChange={handleKopUpload} className="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-emerald-50 file:text-emerald-800 hover:file:bg-emerald-100 transition cursor-pointer" accept="image/*" />
                           <p className="text-xs text-gray-500 mt-2">Upload file gambar Kop Surat resmi yang sudah menyatu dengan logo dan garis batas. Jika diisi, gambar ini akan digunakan sebagai Kop Surat pada dokumen SPMT.</p>
                         </div>
                       </div>
                     </div>
 
                     <div className="border-t border-gray-100 pt-6">
-                      <h4 className="font-bold text-sm text-indigo-600 mb-4 uppercase tracking-wide">Pejabat Penandatangan (Pihak Kesatu)</h4>
+                      <h4 className="font-bold text-sm text-emerald-700 mb-4 uppercase tracking-wide">Pejabat Penandatangan (Pihak Kesatu)</h4>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <InputField label="Nama Pejabat" value={tempSettings.officialName} onChange={(e:any) => setTempSettings({...tempSettings, officialName: e.target.value})} />
                         <InputField label="NIP Pejabat" value={tempSettings.officialNip} onChange={(e:any) => setTempSettings({...tempSettings, officialNip: e.target.value})} />
@@ -1572,7 +1873,7 @@ export default function App() {
                     </div>
 
                     <div className="border-t border-gray-100 pt-6">
-                       <h4 className="font-bold text-sm text-indigo-600 mb-4 uppercase tracking-wide">Data Referensi SK</h4>
+                       <h4 className="font-bold text-sm text-emerald-700 mb-4 uppercase tracking-wide">Data Referensi SK</h4>
                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                           <InputField label="Pejabat yang Mengangkat SK" value={tempSettings.skOfficial} onChange={(e:any) => setTempSettings({...tempSettings, skOfficial: e.target.value})} placeholder="Contoh: BUPATI DEMAK" />
                           <InputField type="date" label="Tanggal Penandatanganan Kontrak (Default)" value={tempSettings.signatureDate} onChange={(e:any) => setTempSettings({...tempSettings, signatureDate: e.target.value})} />
@@ -1581,7 +1882,7 @@ export default function App() {
                   </div>
 
                   <div className="p-6 bg-gray-50 border-t border-gray-100 flex justify-end">
-                    <button type="submit" disabled={isSaving} className="bg-indigo-600 hover:bg-indigo-700 text-white px-8 py-3 rounded-xl font-bold flex items-center shadow-lg shadow-indigo-200 transition">
+                    <button type="submit" disabled={isSaving} className="bg-emerald-700 hover:bg-emerald-800 text-white px-8 py-3 rounded-xl font-bold flex items-center shadow-lg shadow-emerald-200 transition">
                       {isSaving ? <Loader2 className="animate-spin mr-2"/> : <Save size={18} className="mr-2" />} Simpan Pengaturan
                     </button>
                   </div>
@@ -1628,7 +1929,7 @@ export default function App() {
                 </div>
                 
                 <div className="md:col-span-2 border-t pt-4">
-                  <h4 className="font-bold text-sm text-indigo-600 uppercase tracking-wide">Detail Kontrak & Gaji</h4>
+                  <h4 className="font-bold text-sm text-emerald-700 uppercase tracking-wide">Detail Kontrak & Gaji</h4>
                 </div>
                 <InputField label="Nomor Perjanjian" value={editingEmployee.agreementNumber || ''} onChange={(e:any) => setEditingEmployee({...editingEmployee, agreementNumber: e.target.value})} />
                 <InputField label="Gaji Pokok (Angka)" value={editingEmployee.salaryAmount || ''} onChange={(e:any) => handleSalaryChange(e.target.value)} />
@@ -1638,7 +1939,7 @@ export default function App() {
 
                 {/* NEW SECTION: DATA SK & SPMT */}
                 <div className="md:col-span-2 border-t pt-4">
-                  <h4 className="font-bold text-sm text-indigo-600 uppercase tracking-wide flex items-center"><Briefcase size={16} className="mr-2"/> Data SK & SPMT</h4>
+                  <h4 className="font-bold text-sm text-emerald-700 uppercase tracking-wide flex items-center"><Briefcase size={16} className="mr-2"/> Data SK & SPMT</h4>
                 </div>
                 <InputField label="Nomor SPMT" placeholder="Contoh: 821/..." value={editingEmployee.spmtNumber || ''} onChange={(e:any) => setEditingEmployee({...editingEmployee, spmtNumber: e.target.value})} />
                 <InputField type="date" label="Tanggal SPMT (Melaksanakan Tugas)" value={editingEmployee.spmtDate || ''} onChange={(e:any) => setEditingEmployee({...editingEmployee, spmtDate: e.target.value})} />
@@ -1652,7 +1953,7 @@ export default function App() {
             </form>
             <div className="p-6 border-t bg-gray-50 flex justify-end gap-3 sticky bottom-0">
                 <button type="button" onClick={() => setIsModalOpen(false)} className="px-6 py-2.5 text-gray-600 hover:bg-gray-200 rounded-lg font-bold transition">Batal</button>
-                <button onClick={handleSaveEmployeeAdmin} disabled={isSaving} className="bg-indigo-600 hover:bg-indigo-700 text-white px-8 py-2.5 rounded-lg font-bold flex items-center shadow-lg shadow-indigo-200 transition">
+                <button onClick={handleSaveEmployeeAdmin} disabled={isSaving} className="bg-emerald-700 hover:bg-emerald-800 text-white px-8 py-2.5 rounded-lg font-bold flex items-center shadow-lg shadow-emerald-900/20 transition">
                   {isSaving ? <Loader2 className="animate-spin mr-2"/> : <Save size={18} className="mr-2"/>} Simpan Data
                 </button>
             </div>
@@ -1693,7 +1994,7 @@ export default function App() {
                   />
                   <div className="pt-4 flex gap-3">
                      <button type="button" onClick={() => setIsPrintVerifyModalOpen(false)} className="flex-1 py-2.5 bg-gray-100 hover:bg-gray-200 rounded-lg font-bold text-gray-600 transition">Batal</button>
-                     <button type="submit" className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-700 rounded-lg font-bold text-white transition flex justify-center items-center shadow-lg shadow-indigo-200">
+                     <button type="submit" className="flex-1 py-2.5 bg-emerald-700 hover:bg-emerald-800 rounded-lg font-bold text-white transition flex justify-center items-center shadow-lg shadow-emerald-900/20">
                         <Printer size={18} className="mr-2"/> Cetak Sekarang
                      </button>
                   </div>
@@ -1750,7 +2051,7 @@ export default function App() {
                      <>
                        {/* Cetak Verifikasi hanya jika Verifikator/Admin dan sudah diapprove */}
                        {canUserPrintVerification(user, previewEmployee) && (
-                          <button onClick={() => handlePrintVerificationClick(previewEmployee)} className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2.5 rounded-lg font-bold flex items-center shadow-sm transition">
+                          <button onClick={() => handlePrintVerificationClick(previewEmployee)} className="bg-emerald-700 hover:bg-emerald-800 text-white px-4 py-2.5 rounded-lg font-bold flex items-center shadow-sm transition">
                              <ClipboardCheck size={18} className="mr-2"/> Verif
                           </button>
                         )}
@@ -1799,7 +2100,7 @@ export default function App() {
 
                  <div className="pt-2 flex gap-3">
                     <button onClick={() => setIsStatusModalOpen(false)} className="flex-1 py-2.5 bg-gray-100 hover:bg-gray-200 rounded-lg font-bold text-gray-600 transition">Batal</button>
-                    <button onClick={executeStatusChange} disabled={isSaving} className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-700 rounded-lg font-bold text-white transition flex justify-center items-center shadow-lg shadow-indigo-200">
+                    <button onClick={executeStatusChange} disabled={isSaving} className="flex-1 py-2.5 bg-emerald-700 hover:bg-emerald-800 rounded-lg font-bold text-white transition flex justify-center items-center shadow-lg shadow-emerald-900/20">
                        {isSaving ? <Loader2 className="animate-spin mr-2" size={18}/> : <Save size={18} className="mr-2"/>} Simpan
                     </button>
                  </div>
@@ -1843,7 +2144,7 @@ export default function App() {
               </p>
               <div className="flex gap-3">
                 <button onClick={() => setIsEmployeeApproveModalOpen(false)} className="flex-1 py-2.5 bg-gray-100 hover:bg-gray-200 rounded-lg font-bold text-gray-700 transition">Periksa Lagi</button>
-                <button onClick={handleEmployeeApprove} disabled={isSaving} className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-700 rounded-lg font-bold text-white transition flex justify-center items-center shadow-lg">
+                <button onClick={handleEmployeeApprove} disabled={isSaving} className="flex-1 py-2.5 bg-emerald-700 hover:bg-emerald-800 rounded-lg font-bold text-white transition flex justify-center items-center shadow-lg">
                    {isSaving ? <Loader2 className="animate-spin" size={18}/> : 'Ya, Data Benar'}
                 </button>
               </div>
