@@ -18,6 +18,7 @@ import {
   Upload, 
   Save, 
   AlertTriangle,
+  AlertCircle,
   Download,
   RefreshCw,
   Wifi,
@@ -468,7 +469,29 @@ export default function App() {
   // Employee Self Service State
   const [isEmployeeEditing, setIsEmployeeEditing] = useState(false);
   const [isEmployeeApproveModalOpen, setIsEmployeeApproveModalOpen] = useState(false);
+  const [isEmployeeSaveModalOpen, setIsEmployeeSaveModalOpen] = useState(false);
   const [activeEmployeeSection, setActiveEmployeeSection] = useState<'all' | 'identity' | 'job' | 'sk'>('all');
+
+  // Toasts Notification System
+  interface ToastNotification {
+    id: string;
+    type: 'success' | 'info' | 'warning' | 'error';
+    title: string;
+    message?: string;
+  }
+  const [toasts, setToasts] = useState<ToastNotification[]>([]);
+
+  const showToast = (title: string, message?: string, type: 'success' | 'info' | 'warning' | 'error' = 'success') => {
+    const id = Math.random().toString(36).substring(2, 9);
+    setToasts(prev => [...prev.slice(-4), { id, type, title, message }]);
+    setTimeout(() => {
+      setToasts(prev => prev.filter(t => t.id !== id));
+    }, 4500);
+  };
+
+  const removeToast = (id: string) => {
+    setToasts(prev => prev.filter(t => t.id !== id));
+  };
 
   // New States for Preview & Verification
   const [previewEmployee, setPreviewEmployee] = useState<Employee | null>(null);
@@ -663,16 +686,21 @@ export default function App() {
       
       await fetchData();
       setIsModalOpen(false);
-      alert("Data pegawai berhasil disimpan!");
+      showToast("Data Berhasil Disimpan", "Data pegawai berhasil disimpan ke database.", "success");
     } catch (err: any) {
-      alert("Gagal menyimpan: " + err.message);
+      showToast("Gagal Menyimpan", err.message, "error");
     } finally {
       setIsSaving(false);
     }
   };
 
-  const handleEmployeeSave = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleEmployeeSave = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!editingEmployee.id) return;
+    setIsEmployeeSaveModalOpen(true);
+  };
+
+  const executeEmployeeSave = async () => {
     if (!editingEmployee.id) return;
 
     setIsSaving(true);
@@ -694,9 +722,14 @@ export default function App() {
       setEditingEmployee(targetEmployee);
       setEmployeeFormData(targetEmployee);
       setIsEmployeeEditing(false); 
-      alert("Data berhasil diperbarui. Silakan klik 'Data Sudah Benar' jika sudah sesuai.");
+      setIsEmployeeSaveModalOpen(false);
+      showToast(
+        "Perubahan Berhasil Disimpan",
+        "Data Anda telah diperbarui. Silakan tinjau kembali dan klik 'Data Sudah Benar & Setujui' jika sudah sesuai.",
+        "success"
+      );
     } catch (err: any) {
-      alert("Gagal menyimpan: " + err.message);
+      showToast("Gagal Menyimpan", err.message, "error");
     } finally {
       setIsSaving(false);
     }
@@ -724,9 +757,13 @@ export default function App() {
       setEmployeeFormData(targetEmployee);
       setIsEmployeeEditing(false);
       setIsEmployeeApproveModalOpen(false); // Close modal
-      alert("Terima kasih. Data Anda telah disetujui dan akan diperiksa oleh Verifikator.");
+      showToast(
+        "Persetujuan Berhasil Terkirim!",
+        "Data Anda telah disetujui dan diteruskan ke Tim Verifikator untuk diverifikasi.",
+        "success"
+      );
     } catch (err: any) {
-      alert("Gagal menyetujui: " + err.message);
+      showToast("Gagal Menyetujui", err.message, "error");
     } finally {
       setIsSaving(false);
     }
@@ -737,7 +774,11 @@ export default function App() {
     if (!previewEmployee) return;
 
     if (!canUserVerifyEmployee(user, previewEmployee)) {
-      alert(`Akses Ditolak: Akun Anda (${user?.placementUnit || 'Verifikator'}) hanya berwenang memverifikasi pegawai dari ${user?.placementUnit}. Pegawai ini berada di ${previewEmployee.placementUnit || previewEmployee.unit || 'Bagian lain'}.`);
+      showToast(
+        "Akses Ditolak",
+        `Akun Anda (${user?.placementUnit || 'Verifikator'}) hanya berwenang memverifikasi pegawai dari ${user?.placementUnit}. Pegawai ini berada di ${previewEmployee.placementUnit || previewEmployee.unit || 'Bagian lain'}.`,
+        "warning"
+      );
       setIsVerifyConfirmOpen(false);
       return;
     }
@@ -761,9 +802,9 @@ export default function App() {
       setEmployees(prev => prev.map(emp => emp.id === targetEmployee.id ? targetEmployee : emp));
       setPreviewEmployee(targetEmployee); // Update preview state
       setIsVerifyConfirmOpen(false);
-      alert("Data berhasil diverifikasi!");
+      showToast("Verifikasi Berhasil!", `Data pegawai ${targetEmployee.name} telah berhasil diverifikasi dan kini Siap Cetak.`, "success");
     } catch (err: any) {
-      alert("Gagal memverifikasi: " + err.message);
+      showToast("Gagal Memverifikasi", err.message, "error");
     } finally {
       setIsSaving(false);
     }
@@ -796,9 +837,9 @@ export default function App() {
        setEmployees(prev => prev.map(emp => emp.id === targetEmployee.id ? targetEmployee : emp));
        setIsStatusModalOpen(false);
        setStatusTargetEmployee(null);
-       alert("Status berhasil diperbarui!");
+       showToast("Status Diperbarui", "Status data pegawai berhasil diperbarui.", "success");
     } catch (err: any) {
-      alert("Gagal ubah status: " + err.message);
+      showToast("Gagal Ubah Status", err.message, "error");
     } finally {
       setIsSaving(false);
     }
@@ -990,9 +1031,9 @@ export default function App() {
     try {
       await setDoc(doc(db, 'settings', 'main'), dbPayload);
       setSettings(tempSettings);
-      alert('Pengaturan instansi berhasil disimpan!');
+      showToast("Pengaturan Disimpan", "Pengaturan instansi berhasil disimpan.", "success");
     } catch (err: any) {
-      alert("Gagal simpan pengaturan: " + err.message);
+      showToast("Gagal Simpan Pengaturan", err.message, "error");
     } finally {
       setIsSaving(false);
     }
@@ -1969,7 +2010,8 @@ export default function App() {
                             Batal
                           </button>
                           <button 
-                            type="submit" 
+                            type="button" 
+                            onClick={() => setIsEmployeeSaveModalOpen(true)}
                             disabled={isSaving} 
                             className="px-6 py-3 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl font-bold flex items-center justify-center transition shadow-lg shadow-emerald-900/20 cursor-pointer"
                           >
@@ -2929,22 +2971,110 @@ export default function App() {
         </div>
       )}
       
-      {/* MODAL KONFIRMASI DATA BENAR (PEGAWAI) */}
-      {isEmployeeApproveModalOpen && (
-        <div className="fixed inset-0 bg-black/50 z-[60] flex items-center justify-center p-4">
-           <div className="bg-white p-6 rounded-xl shadow-2xl max-w-sm w-full text-center">
-              <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4 text-blue-600">
-                <CheckCircle size={32}/>
+      {/* MODAL KONFIRMASI SIMPAN PERUBAHAN (PORTAL PEGAWAI) */}
+      {isEmployeeSaveModalOpen && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[70] flex items-center justify-center p-4">
+           <div className="bg-white rounded-2xl sm:rounded-3xl shadow-2xl max-w-md w-full p-6 sm:p-7 text-center relative overflow-hidden border border-slate-100">
+              <div className="w-16 h-16 bg-amber-50 text-amber-600 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-amber-200 shadow-inner">
+                <Save size={28} className="text-amber-600"/>
               </div>
-              <h3 className="font-bold text-xl mb-2">Konfirmasi Kebenaran Data</h3>
-              <p className="text-sm text-gray-600 mb-6">
-                Apakah Anda yakin data yang Anda masukkan sudah benar? <br/>
-                <span className="font-bold text-red-500">Data tidak dapat diubah setelah Anda menyetujuinya.</span>
+
+              <h3 className="font-extrabold text-lg sm:text-xl text-slate-800 tracking-tight">Simpan Perubahan Data?</h3>
+              <p className="text-xs sm:text-sm text-slate-500 mt-2 leading-relaxed">
+                Perubahan data yang Anda lakukan akan diperbarui di sistem. Status data Anda tetap <span className="font-semibold text-amber-800 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200">Pending</span> hingga Anda menyetujuinya.
               </p>
-              <div className="flex gap-3">
-                <button onClick={() => setIsEmployeeApproveModalOpen(false)} className="flex-1 py-2.5 bg-gray-100 hover:bg-gray-200 rounded-lg font-bold text-gray-700 transition">Periksa Lagi</button>
-                <button onClick={handleEmployeeApprove} disabled={isSaving} className="flex-1 py-2.5 bg-emerald-700 hover:bg-emerald-800 rounded-lg font-bold text-white transition flex justify-center items-center shadow-lg">
-                   {isSaving ? <Loader2 className="animate-spin" size={18}/> : 'Ya, Data Benar'}
+
+              <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-4 my-5 text-left text-xs space-y-1.5 text-slate-600">
+                <div className="flex items-center gap-2 font-bold text-slate-700">
+                  <Info size={15} className="text-emerald-700 shrink-0" />
+                  <span>Langkah Berikutnya:</span>
+                </div>
+                <p className="text-[11px] text-slate-500 pl-5 leading-relaxed">
+                  Setelah data tersimpan, periksa kembali seluruh seksi dan klik tombol <strong className="text-emerald-700 font-bold">"Data Sudah Benar & Setujui"</strong> agar data Anda dapat diteruskan ke Verifikator.
+                </p>
+              </div>
+
+              <div className="flex flex-col-reverse sm:flex-row gap-2.5">
+                <button 
+                  type="button"
+                  onClick={() => setIsEmployeeSaveModalOpen(false)} 
+                  disabled={isSaving}
+                  className="flex-1 py-3 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-xs sm:text-sm transition cursor-pointer"
+                >
+                  Periksa Lagi
+                </button>
+                <button 
+                  type="button"
+                  onClick={executeEmployeeSave} 
+                  disabled={isSaving} 
+                  className="flex-1 py-3 px-4 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl font-bold text-xs sm:text-sm transition flex items-center justify-center shadow-lg shadow-emerald-900/20 cursor-pointer disabled:opacity-70"
+                >
+                  {isSaving ? (
+                    <>
+                      <Loader2 className="animate-spin mr-2" size={16}/>
+                      <span>Menyimpan...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Save size={16} className="mr-2" />
+                      <span>Ya, Simpan Perubahan</span>
+                    </>
+                  )}
+                </button>
+              </div>
+           </div>
+        </div>
+      )}
+      
+      {/* MODAL KONFIRMASI DATA SUDAH BENAR & SETUJUI (PORTAL PEGAWAI) */}
+      {isEmployeeApproveModalOpen && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[70] flex items-center justify-center p-4">
+           <div className="bg-white rounded-2xl sm:rounded-3xl shadow-2xl max-w-md w-full p-6 sm:p-7 text-center relative overflow-hidden border border-slate-100">
+              <div className="w-16 h-16 bg-emerald-50 text-emerald-600 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-emerald-200 shadow-inner">
+                <CheckCircle size={32} className="text-emerald-700"/>
+              </div>
+
+              <h3 className="font-extrabold text-lg sm:text-xl text-slate-800 tracking-tight">Konfirmasi Persetujuan Data</h3>
+              <p className="text-xs sm:text-sm text-slate-500 mt-2 leading-relaxed">
+                Apakah Anda menyatakan bahwa seluruh data diri, riwayat pendidikan, unit kerja, gaji pokok, dan SK telah <strong>benar dan sesuai</strong>?
+              </p>
+
+              <div className="bg-emerald-50/70 border border-emerald-200 rounded-2xl p-4 my-5 text-left text-xs space-y-2 text-emerald-950">
+                <div className="flex items-start gap-2 font-semibold">
+                  <ShieldCheck size={16} className="text-emerald-700 shrink-0 mt-0.5" />
+                  <span>Data akan dikirimkan ke Tim Verifikator Bagian untuk proses verifikasi berkas dan pencetakan dokumen resmi.</span>
+                </div>
+                <p className="text-[11px] text-emerald-800 pl-6 leading-relaxed">
+                  Setelah disetujui, isian data akan dikunci sementara selama proses verifikasi berlangsung.
+                </p>
+              </div>
+
+              <div className="flex flex-col-reverse sm:flex-row gap-2.5">
+                <button 
+                  type="button"
+                  onClick={() => setIsEmployeeApproveModalOpen(false)} 
+                  disabled={isSaving}
+                  className="flex-1 py-3 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-xs sm:text-sm transition cursor-pointer"
+                >
+                  Periksa Kembali
+                </button>
+                <button 
+                  type="button"
+                  onClick={handleEmployeeApprove} 
+                  disabled={isSaving} 
+                  className="flex-1 py-3 px-4 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl font-bold text-xs sm:text-sm transition flex items-center justify-center shadow-lg shadow-emerald-900/20 cursor-pointer disabled:opacity-70"
+                >
+                  {isSaving ? (
+                    <>
+                      <Loader2 className="animate-spin mr-2" size={16}/>
+                      <span>Memproses...</span>
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle size={16} className="mr-2" />
+                      <span>Ya, Data Sudah Benar & Setujui</span>
+                    </>
+                  )}
                 </button>
               </div>
            </div>
@@ -2971,6 +3101,54 @@ export default function App() {
            </div>
         </div>
       )}
+
+      {/* NOTIFIKASI TOASTS */}
+      <div className="fixed top-5 right-5 sm:right-6 z-[9999] flex flex-col gap-2.5 max-w-sm w-[calc(100vw-2.5rem)] pointer-events-none">
+        {toasts.map(toast => (
+          <div 
+            key={toast.id}
+            className="pointer-events-auto bg-white rounded-2xl shadow-xl border border-slate-200/90 p-4 flex items-start gap-3 transition-all duration-300"
+          >
+            <div className="shrink-0 mt-0.5">
+              {toast.type === 'success' && (
+                <div className="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center">
+                  <CheckCircle size={18} />
+                </div>
+              )}
+              {toast.type === 'info' && (
+                <div className="w-8 h-8 rounded-xl bg-sky-100 text-sky-700 flex items-center justify-center">
+                  <Info size={18} />
+                </div>
+              )}
+              {toast.type === 'warning' && (
+                <div className="w-8 h-8 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center">
+                  <AlertTriangle size={18} />
+                </div>
+              )}
+              {toast.type === 'error' && (
+                <div className="w-8 h-8 rounded-xl bg-rose-100 text-rose-700 flex items-center justify-center">
+                  <AlertCircle size={18} />
+                </div>
+              )}
+            </div>
+
+            <div className="flex-1 min-w-0">
+              <h5 className="font-bold text-sm text-slate-800 leading-snug">{toast.title}</h5>
+              {toast.message && (
+                <p className="text-xs text-slate-600 mt-1 leading-relaxed">{toast.message}</p>
+              )}
+            </div>
+
+            <button 
+              onClick={() => removeToast(toast.id)}
+              className="text-slate-400 hover:text-slate-600 p-1 -mr-1 -mt-1 rounded-lg hover:bg-slate-100 transition cursor-pointer"
+              title="Tutup Notifikasi"
+            >
+              <X size={15} />
+            </button>
+          </div>
+        ))}
+      </div>
 
     </div>
   );
