@@ -65,8 +65,8 @@ export const ContractDocument: React.FC<ContractDocumentProps> = ({ employee, se
     <div className="bg-white p-8 max-w-[210mm] mx-auto contract-font text-justify text-black print:p-0 print:max-w-none print:w-full print:mx-0">
       {/* HEADER */}
       <div className="text-center font-bold mb-6 text-black">
-        <h1 className="underline">PERJANJIAN KERJA</h1>
-        <p>NOMOR : 810 / {employee.agreementNumber || '............'} / TAHUN 2025</p>
+        <h1 className="underline">PERPANJANGAN PERJANJIAN KERJA</h1>
+        <p>NOMOR : 800.1.13.2/ {employee.agreementNumber || '............'} / TAHUN 2026</p>
       </div>
 
       {/* OPENING */}
@@ -163,7 +163,7 @@ export const ContractDocument: React.FC<ContractDocumentProps> = ({ employee, se
               <td className="w-6 align-top">a.</td>
               <td className="w-48 align-top">Masa Perjanjian Kerja</td>
               <td className="w-6 align-top">:</td>
-              <td className="text-left">1 Oktober 2025 s/d 30 September 2026</td>
+              <td className="text-left">1 Oktober 2026 s/d 30 September 2027</td>
             </tr>
             <tr>
               <td className="align-top">b.</td>
@@ -175,7 +175,7 @@ export const ContractDocument: React.FC<ContractDocumentProps> = ({ employee, se
               <td className="align-top">c.</td>
               <td className="align-top">Masa Kerja sebelumnya</td>
               <td className="align-top">:</td>
-              <td className="text-left">0 tahun 0 bulan</td>
+              <td className="text-left">1 tahun 0 bulan</td>
             </tr>
             <tr>
               <td className="align-top">d.</td>

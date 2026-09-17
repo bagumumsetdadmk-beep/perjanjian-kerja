@@ -43,7 +43,29 @@ import {
   ChevronLeft,
   Briefcase,
   Info,
-  ShieldCheck
+  ShieldCheck,
+  Building2,
+  Award,
+  DollarSign,
+  MapPin,
+  Sparkles,
+  Filter,
+  CheckCheck,
+  ArrowRight,
+  Phone,
+  Mail,
+  FileCheck2,
+  ArrowUpRight,
+  ExternalLink,
+  HelpCircle,
+  Layers,
+  UserCheck,
+  ShieldAlert,
+  FileBadge,
+  Hash,
+  Stamp,
+  BookOpen,
+  GraduationCap
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { initializeApp } from 'firebase/app';
@@ -57,7 +79,7 @@ import { SpmtDocument } from './components/SpmtDocument.tsx';
 import firebaseConfig from './firebase-applet-config.json';
 const app = initializeApp(firebaseConfig);
 const db = initializeFirestore(app, {
-  experimentalAutoDetectLongPolling: true,
+  experimentalForceLongPolling: true,
 }, firebaseConfig.firestoreDatabaseId);
 
 // --- MAPPING HELPERS ---
@@ -386,6 +408,32 @@ const canUserPrintVerification = (currentUser: User | null, emp: Employee | null
   return false;
 };
 
+// Helper for initials and avatar colors
+const getInitials = (name?: string) => {
+  if (!name) return 'PG';
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 1) return parts[0].substring(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+};
+
+const getAvatarBg = (name?: string) => {
+  const gradients = [
+    'from-emerald-600 to-teal-700 text-white',
+    'from-blue-600 to-indigo-700 text-white',
+    'from-indigo-600 to-violet-700 text-white',
+    'from-amber-600 to-orange-700 text-white',
+    'from-rose-600 to-pink-700 text-white',
+    'from-cyan-600 to-sky-700 text-white',
+    'from-teal-600 to-emerald-800 text-white',
+    'from-purple-600 to-indigo-800 text-white'
+  ];
+  if (!name) return gradients[0];
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
+  const idx = Math.abs(hash) % gradients.length;
+  return gradients[idx];
+};
+
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -406,6 +454,7 @@ export default function App() {
   // Employee Self Service State
   const [isEmployeeEditing, setIsEmployeeEditing] = useState(false);
   const [isEmployeeApproveModalOpen, setIsEmployeeApproveModalOpen] = useState(false);
+  const [activeEmployeeSection, setActiveEmployeeSection] = useState<'all' | 'identity' | 'job' | 'sk'>('all');
 
   // New States for Preview & Verification
   const [previewEmployee, setPreviewEmployee] = useState<Employee | null>(null);
@@ -438,8 +487,19 @@ export default function App() {
   // Search & Pagination State
   const [searchTerm, setSearchTerm] = useState('');
   const [unitFilter, setUnitFilter] = useState<string>('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'approved' | 'verified_by_employee' | 'pending'>('all');
   const [currentPage, setCurrentPage] = useState(1);
   const ITEMS_PER_PAGE = 10;
+  const [copiedText, setCopiedText] = useState<string | null>(null);
+
+  const handleCopyText = (text: string, label: string) => {
+    if (!text) return;
+    navigator.clipboard.writeText(text);
+    setCopiedText(label);
+    setTimeout(() => {
+      setCopiedText(null);
+    }, 2000);
+  };
 
   // DB State
   const [dbStatus, setDbStatus] = useState<'checking' | 'connected' | 'error' | 'not_configured'>('checking');
@@ -453,7 +513,7 @@ export default function App() {
   const [showKey, setShowKey] = useState(false);
 
   // --- DATABASE LOGIC ---
-  const fetchData = async () => {
+  const fetchData = async (retryCount = 0) => {
     try {
       setDbStatus('checking');
       let querySnapshot;
@@ -485,8 +545,12 @@ export default function App() {
       setDbStatus('connected');
     } catch (err: any) {
       console.error("Fetch Data Crash:", err);
-      setDbStatus('error');
-      setDbErrorMessage(err.message || 'Gagal terhubung ke database Firestore');
+      if (retryCount < 2) {
+        setTimeout(() => fetchData(retryCount + 1), 1500);
+      } else {
+        setDbStatus('error');
+        setDbErrorMessage(err.message || 'Gagal terhubung ke database Firestore');
+      }
     }
   };
 
@@ -1238,10 +1302,17 @@ export default function App() {
   const countApproved = scopedEmployees.filter(e => e.status === 'approved').length;
 
   // --- FILTER & PAGINATION LOGIC ---
-  const filteredEmployees = employees.filter(emp => {
-    const matchesSearch = emp.name.toLowerCase().includes(searchTerm.toLowerCase()) || emp.nip.includes(searchTerm);
+  const filteredEmployees = scopedEmployees.filter(emp => {
+    const s = searchTerm.toLowerCase();
+    const matchesSearch = !searchTerm || 
+      emp.name.toLowerCase().includes(s) || 
+      emp.nip.includes(s) || 
+      (emp.position && emp.position.toLowerCase().includes(s)) ||
+      (emp.placementUnit && emp.placementUnit.toLowerCase().includes(s)) ||
+      (emp.unit && emp.unit.toLowerCase().includes(s));
     const matchesUnit = unitFilter === 'all' ? true : (emp.placementUnit === unitFilter || emp.unit === unitFilter);
-    return matchesSearch && matchesUnit;
+    const matchesStatus = statusFilter === 'all' ? true : emp.status === statusFilter;
+    return matchesSearch && matchesUnit && matchesStatus;
   });
 
   const totalPages = Math.ceil(filteredEmployees.length / ITEMS_PER_PAGE);
@@ -1251,12 +1322,20 @@ export default function App() {
   );
 
   return (
-    <div className="flex min-h-screen bg-gray-100 font-sans text-black overflow-hidden">
+    <div className="flex min-h-screen bg-slate-50 font-sans text-slate-900 overflow-hidden antialiased">
       
+      {/* TOAST COPY NOTIFICATION */}
+      {copiedText && (
+        <div className="fixed bottom-6 right-6 z-[100] bg-slate-900 text-white px-4 py-2.5 rounded-xl shadow-2xl flex items-center gap-2 text-xs font-semibold animate-in fade-in slide-in-from-bottom-3 duration-200 border border-slate-700">
+          <CheckCircle size={16} className="text-emerald-400 shrink-0" />
+          <span>{copiedText} berhasil disalin ke clipboard</span>
+        </div>
+      )}
+
       {/* MOBILE OVERLAY */}
       {isSidebarOpen && (user.role === 'admin' || user.role === 'verifikator') && (
         <div 
-          className="fixed inset-0 bg-black/50 z-40 md:hidden backdrop-blur-sm transition-opacity"
+          className="fixed inset-0 bg-slate-950/60 z-40 md:hidden backdrop-blur-sm transition-opacity"
           onClick={() => setIsSidebarOpen(false)}
         />
       )}
@@ -1264,31 +1343,37 @@ export default function App() {
       {/* ADMIN & VERIFIKATOR SIDEBAR */}
       {(user.role === 'admin' || user.role === 'verifikator') && (
         <aside className={`fixed inset-y-0 left-0 z-50 w-72 bg-slate-900 text-white transform transition-transform duration-300 ease-in-out md:relative md:translate-x-0 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} shadow-2xl md:shadow-none flex flex-col border-r border-slate-800`}>
-          <div className="p-8 border-b border-slate-800 text-center flex flex-col items-center">
-            {settings.logoUrl && <img src={settings.logoUrl} className="h-16 mb-4 object-contain" />}
-            <span className="font-bold text-xl tracking-tight text-white">SIPERJAKA</span>
-            <p className="text-[10px] text-emerald-400 font-medium uppercase mt-2 px-2 leading-relaxed tracking-wider">{settings.opdName}</p>
-            <span className="text-[10px] bg-emerald-950/80 px-2.5 py-1 rounded-full mt-2 text-emerald-300 border border-emerald-800/80 uppercase font-bold tracking-wider">{user.role === 'admin' ? 'ADMINISTRATOR' : `VERIFIKATOR ${user.placementUnit ? `(${user.placementUnit})` : ''}`}</span>
+          <div className="p-6 border-b border-slate-800 text-center flex flex-col items-center">
+            {settings.logoUrl ? (
+              <img src={settings.logoUrl} className="h-14 mb-3 object-contain" />
+            ) : (
+              <div className="w-12 h-12 bg-emerald-600/20 text-emerald-400 border border-emerald-500/30 rounded-2xl flex items-center justify-center mb-3">
+                <Building2 size={24} />
+              </div>
+            )}
+            <span className="font-black text-xl tracking-tight text-white">SIPERJAKA</span>
+            <p className="text-[10px] text-emerald-400 font-bold uppercase mt-1 px-2 leading-relaxed tracking-wider">{settings.opdName}</p>
+            <span className="text-[10px] bg-emerald-950/80 px-3 py-1 rounded-full mt-2.5 text-emerald-300 border border-emerald-800/80 uppercase font-bold tracking-wider">{user.role === 'admin' ? 'ADMINISTRATOR' : `VERIFIKATOR ${user.placementUnit ? `(${user.placementUnit})` : ''}`}</span>
           </div>
-          <nav className="p-4 space-y-2 flex-1 overflow-y-auto">
-            <div className="px-4 mb-2 text-[10px] font-bold text-slate-500 uppercase tracking-wider">Menu Utama</div>
-            <button onClick={() => { setView('dashboard'); setIsSidebarOpen(false); }} className={`w-full flex items-center p-3.5 rounded-xl text-sm font-medium transition-all ${view === 'dashboard' ? 'bg-gradient-to-r from-emerald-700 to-emerald-800 text-white shadow-lg shadow-emerald-950/50' : 'hover:bg-slate-800 text-gray-300 hover:text-white'}`}><LayoutDashboard className="mr-3.5" size={20}/> Dashboard</button>
+          <nav className="p-4 space-y-1.5 flex-1 overflow-y-auto">
+            <div className="px-3 mb-2 text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">Menu Utama</div>
+            <button onClick={() => { setView('dashboard'); setIsSidebarOpen(false); }} className={`w-full flex items-center p-3 rounded-xl text-sm font-medium transition-all ${view === 'dashboard' ? 'bg-emerald-700 text-white shadow-md shadow-emerald-950/50 font-semibold' : 'hover:bg-slate-800 text-slate-300 hover:text-white'}`}><LayoutDashboard className="mr-3 text-emerald-400" size={18}/> Dashboard</button>
             
             {user.role === 'admin' && (
                <>
-                 <div className="px-4 mb-2 mt-6 text-[10px] font-bold text-slate-500 uppercase tracking-wider">Data & Dokumen</div>
-                 <button onClick={() => { setView('employees'); setIsSidebarOpen(false); }} className={`w-full flex items-center p-3.5 rounded-xl text-sm font-medium transition-all ${view === 'employees' ? 'bg-gradient-to-r from-emerald-700 to-emerald-800 text-white shadow-lg shadow-emerald-950/50' : 'hover:bg-slate-800 text-gray-300 hover:text-white'}`}><Users className="mr-3.5" size={20}/> Data Pegawai</button>
-                 <button onClick={() => { setView('print'); setIsSidebarOpen(false); }} className={`w-full flex items-center p-3.5 rounded-xl text-sm font-medium transition-all ${view === 'print' ? 'bg-gradient-to-r from-emerald-700 to-emerald-800 text-white shadow-lg shadow-emerald-950/50' : 'hover:bg-slate-800 text-gray-300 hover:text-white'}`}><Printer className="mr-3.5" size={20}/> Cetak Dokumen</button>
+                 <div className="px-3 mb-2 mt-6 text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">Data & Dokumen</div>
+                 <button onClick={() => { setView('employees'); setIsSidebarOpen(false); }} className={`w-full flex items-center p-3 rounded-xl text-sm font-medium transition-all ${view === 'employees' ? 'bg-emerald-700 text-white shadow-md shadow-emerald-950/50 font-semibold' : 'hover:bg-slate-800 text-slate-300 hover:text-white'}`}><Users className="mr-3 text-emerald-400" size={18}/> Data Pegawai</button>
+                 <button onClick={() => { setView('print'); setIsSidebarOpen(false); }} className={`w-full flex items-center p-3 rounded-xl text-sm font-medium transition-all ${view === 'print' ? 'bg-emerald-700 text-white shadow-md shadow-emerald-950/50 font-semibold' : 'hover:bg-slate-800 text-slate-300 hover:text-white'}`}><Printer className="mr-3 text-emerald-400" size={18}/> Cetak Dokumen</button>
                  
-                 <div className="px-4 mb-2 mt-6 text-[10px] font-bold text-slate-500 uppercase tracking-wider">Sistem</div>
-                 <button onClick={() => { setView('settings'); setIsSidebarOpen(false); }} className={`w-full flex items-center p-3.5 rounded-xl text-sm font-medium transition-all ${view === 'settings' ? 'bg-gradient-to-r from-emerald-700 to-emerald-800 text-white shadow-lg shadow-emerald-950/50' : 'hover:bg-slate-800 text-gray-300 hover:text-white'}`}><Settings className="mr-3.5" size={20}/> Pengaturan</button>
+                 <div className="px-3 mb-2 mt-6 text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">Sistem</div>
+                 <button onClick={() => { setView('settings'); setIsSidebarOpen(false); }} className={`w-full flex items-center p-3 rounded-xl text-sm font-medium transition-all ${view === 'settings' ? 'bg-emerald-700 text-white shadow-md shadow-emerald-950/50 font-semibold' : 'hover:bg-slate-800 text-slate-300 hover:text-white'}`}><Settings className="mr-3 text-emerald-400" size={18}/> Pengaturan</button>
                </>
             )}
 
             {user.role === 'verifikator' && (
                <>
-                 <div className="px-4 mb-2 mt-6 text-[10px] font-bold text-slate-500 uppercase tracking-wider">Verifikasi</div>
-                 <button onClick={() => { setView('print'); setIsSidebarOpen(false); }} className={`w-full flex items-center p-3.5 rounded-xl text-sm font-medium transition-all ${view === 'print' ? 'bg-gradient-to-r from-emerald-700 to-emerald-800 text-white shadow-lg shadow-emerald-950/50' : 'hover:bg-slate-800 text-gray-300 hover:text-white'}`}><FileCheck className="mr-3.5" size={20}/> Verifikasi Data</button>
+                 <div className="px-3 mb-2 mt-6 text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">Verifikasi</div>
+                 <button onClick={() => { setView('print'); setIsSidebarOpen(false); }} className={`w-full flex items-center p-3 rounded-xl text-sm font-medium transition-all ${view === 'print' ? 'bg-emerald-700 text-white shadow-md shadow-emerald-950/50 font-semibold' : 'hover:bg-slate-800 text-slate-300 hover:text-white'}`}><FileCheck className="mr-3 text-emerald-400" size={18}/> Verifikasi Data</button>
                </>
             )}
 
@@ -1302,145 +1387,554 @@ export default function App() {
       <div className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden">
         {/* HEADER ADMIN/VERIFIKATOR MOBILE */}
         {(user.role === 'admin' || user.role === 'verifikator') && (
-          <header className="bg-white/80 backdrop-blur-md shadow-sm h-16 flex items-center px-6 md:hidden justify-between sticky top-0 z-30">
-            <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="p-2 -ml-2 text-gray-700"><Menu size={24} /></button>
-            <span className="font-bold text-gray-800 tracking-tight">SIPERJAKA</span>
+          <header className="bg-white border-b border-slate-200 h-16 flex items-center px-4 md:hidden justify-between sticky top-0 z-30 shadow-sm">
+            <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="p-2 -ml-1 text-slate-700 hover:bg-slate-100 rounded-lg"><Menu size={22} /></button>
+            <span className="font-bold text-slate-800 tracking-tight">SIPERJAKA</span>
             <div className="w-8"></div>
           </header>
         )}
 
         {/* HEADER PEGAWAI (NO SIDEBAR) */}
         {user.role === 'employee' && (
-           <header className="bg-slate-900 text-white h-16 flex items-center justify-between px-6 shadow-md shrink-0 border-b border-slate-800">
-              <div className="flex items-center">
-                {settings.logoUrl && <img src={settings.logoUrl} className="h-8 mr-3 bg-white rounded p-0.5" />}
+           <header className="bg-slate-900 text-white h-16 flex items-center justify-between px-4 sm:px-8 shadow-md shrink-0 border-b border-slate-800">
+              <div className="flex items-center gap-3">
+                {settings.logoUrl ? (
+                  <img src={settings.logoUrl} className="h-8 w-8 object-contain bg-white/10 rounded-lg p-1" />
+                ) : (
+                  <div className="h-8 w-8 bg-emerald-600/30 text-emerald-400 rounded-lg flex items-center justify-center font-black text-xs">
+                    SP
+                  </div>
+                )}
                 <div>
-                  <h1 className="font-bold text-lg leading-tight tracking-tight flex items-center gap-2">
-                    SIPERJAKA
-                    <span className="text-[10px] bg-emerald-900/80 text-emerald-300 border border-emerald-700/80 px-2 py-0.5 rounded-full font-semibold uppercase">Pegawai</span>
+                  <h1 className="font-bold text-base sm:text-lg leading-tight tracking-tight flex items-center gap-2">
+                    <span>SIPERJAKA</span>
+                    <span className="text-[10px] bg-emerald-950 text-emerald-300 border border-emerald-700/60 px-2 py-0.5 rounded-full font-bold uppercase tracking-wide">Portal Pegawai</span>
                   </h1>
-                  <p className="text-[10px] text-emerald-400 uppercase tracking-wide font-medium">{settings.opdName}</p>
+                  <p className="text-[10px] text-emerald-400 uppercase tracking-wide font-medium hidden sm:block">{settings.opdName}</p>
                 </div>
               </div>
-              <button onClick={() => setUser(null)} className="flex items-center text-sm font-bold bg-slate-800 hover:bg-slate-700 border border-slate-700 px-4 py-2 rounded-xl transition">
-                 <LogOut size={16} className="mr-2"/> Keluar
+              <button 
+                onClick={() => setUser(null)} 
+                className="flex items-center text-xs sm:text-sm font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white border border-slate-700/80 px-3.5 py-2 rounded-xl transition shadow-sm cursor-pointer"
+              >
+                 <LogOut size={15} className="mr-1.5 text-rose-400"/> Keluar
               </button>
            </header>
         )}
 
-        <main className="flex-1 overflow-auto bg-gray-50 p-4 md:p-8">
+        <main className="flex-1 overflow-auto bg-slate-50/60 p-4 sm:p-6 md:p-8">
           
-          {/* --- PEGAWAI VIEW --- */}
+          {/* --- MODERN PEGAWAI VIEW (PORTAL PEGAWAI SETELAH LOGIN) --- */}
           {user.role === 'employee' && (
-            <div className="max-w-4xl mx-auto space-y-6">
-              <div className={`p-6 rounded-2xl border-l-4 shadow-lg flex items-start ${editingEmployee.status === 'approved' || editingEmployee.status === 'verified_by_employee' ? 'bg-white border-green-500 text-green-800' : 'bg-white border-yellow-500 text-yellow-800'}`}>
-                 <div className={`p-3 rounded-full mr-4 ${editingEmployee.status === 'approved' || editingEmployee.status === 'verified_by_employee' ? 'bg-green-100' : 'bg-yellow-100'}`}>
-                    {editingEmployee.status === 'approved' || editingEmployee.status === 'verified_by_employee' ? <CheckCircle size={28} className="text-green-600"/> : <AlertTriangle size={28} className="text-yellow-600"/>}
-                 </div>
-                 <div>
-                    <h2 className="font-bold text-xl text-gray-900">{editingEmployee.status === 'approved' || editingEmployee.status === 'verified_by_employee' ? 'Data Terverifikasi' : 'Verifikasi Data Diperlukan'}</h2>
-                    <p className="text-gray-600 mt-1 leading-relaxed">
-                      {editingEmployee.status === 'approved' || editingEmployee.status === 'verified_by_employee'
-                        ? 'Terima kasih, data Anda telah disetujui. Admin akan segera mencetak perjanjian kerja Anda.'
-                        : 'Mohon periksa kebenaran data di bawah ini. Jika ada kesalahan, klik tombol "Ajukan Perbaikan". Jika sudah sesuai, klik "Data Sudah Benar".'
-                      }
-                    </p>
-                 </div>
+            <div className="max-w-5xl mx-auto space-y-6">
+              
+              {/* 1. HERO PROFILE CARD */}
+              <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-6 sm:p-8 relative overflow-hidden">
+                <div className="absolute -right-16 -top-16 w-64 h-64 bg-gradient-to-bl from-emerald-500/10 via-teal-500/5 to-transparent rounded-full pointer-events-none" />
+                <div className="relative flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+                  
+                  {/* Avatar & Identitas Singkat */}
+                  <div className="flex items-center gap-4 sm:gap-5">
+                    <div className={`w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-gradient-to-tr ${getAvatarBg(editingEmployee.name)} flex items-center justify-center font-black text-xl sm:text-2xl shadow-lg shrink-0`}>
+                      {getInitials(editingEmployee.name)}
+                    </div>
+                    <div className="space-y-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h2 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
+                          {editingEmployee.name || user.username}
+                        </h2>
+                        {editingEmployee.status === 'approved' && (
+                          <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 rounded-full">
+                            <CheckCircle size={12} className="text-emerald-600" /> Terverifikasi
+                          </span>
+                        )}
+                      </div>
+                      
+                      <div className="flex flex-wrap items-center gap-2 pt-0.5">
+                        <button 
+                          onClick={() => handleCopyText(editingEmployee.nip || user.username, 'NIP Pegawai')}
+                          className="inline-flex items-center gap-1.5 text-xs font-mono font-medium text-slate-600 bg-slate-100 hover:bg-slate-200 px-2.5 py-1 rounded-lg transition border border-slate-200/80"
+                          title="Klik untuk menyalin NIP"
+                        >
+                          <Hash size={12} className="text-slate-400" />
+                          <span>{editingEmployee.nip || user.username}</span>
+                          <Copy size={11} className="text-slate-400 ml-0.5" />
+                        </button>
+                        
+                        <span className="inline-flex items-center gap-1 text-xs font-medium text-slate-700 bg-slate-100 px-2.5 py-1 rounded-lg border border-slate-200/80">
+                          <Building2 size={12} className="text-slate-400" />
+                          <span>{editingEmployee.placementUnit || editingEmployee.unit || 'Sekretariat Daerah'}</span>
+                        </span>
+
+                        <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200/80">
+                          <Briefcase size={12} className="text-emerald-600" />
+                          <span>{editingEmployee.position || 'Tenaga Teknis / Administrasi'}</span>
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Status Badge & Primary Action */}
+                  <div className="w-full md:w-auto flex flex-col sm:flex-row md:flex-col items-start md:items-end gap-3 pt-2 md:pt-0 border-t md:border-t-0 border-slate-100">
+                    <div className="text-left md:text-right">
+                      <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Status Perjanjian Kerja</p>
+                      <div className="mt-1">
+                        {editingEmployee.status === 'approved' ? (
+                          <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                            <CheckCircle size={14} className="text-emerald-600" /> Disetujui & Siap Cetak
+                          </span>
+                        ) : editingEmployee.status === 'verified_by_employee' ? (
+                          <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-blue-100 text-blue-800 border border-blue-300">
+                            <Clock size={14} className="text-blue-600" /> Menunggu Verifikator Bagian
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-amber-100 text-amber-800 border border-amber-300">
+                            <AlertTriangle size={14} className="text-amber-600" /> Perlu Verifikasi Mandiri
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                </div>
               </div>
 
-              <div className="bg-white rounded-2xl shadow-xl overflow-hidden border border-gray-100">
-                <div className="px-8 py-6 border-b border-gray-100 bg-gray-50/50 flex flex-col md:flex-row justify-between items-center gap-4">
-                   <h3 className="font-bold text-xl text-gray-800 flex items-center">
-                      <FileText className="mr-3 text-emerald-700"/> Data Perjanjian Kerja
-                   </h3>
-                   <div className="text-xs font-bold px-4 py-1.5 bg-white border border-gray-200 rounded-full text-gray-600 shadow-sm">
-                      NIP: {user.username}
-                   </div>
+              {/* 2. MODERN WORKFLOW STEPPER */}
+              <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-xs font-extrabold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                    <Layers size={14} className="text-emerald-600" /> Tahapan Proses Dokumen
+                  </h3>
+                  <span className="text-[11px] font-medium text-slate-500">
+                    Masa Kontrak: <strong className="text-slate-800">1 Okt 2026 - 30 Sep 2027</strong>
+                  </span>
                 </div>
 
-                <form onSubmit={handleEmployeeSave} className="p-8 space-y-8">
-                  <div>
-                    <h4 className="text-xs font-bold text-emerald-700 uppercase mb-6 tracking-wider border-b pb-2 flex items-center"><UserIcon size={14} className="mr-2"/> I. Data Identitas</h4>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      <InputField label="Nama Lengkap" disabled={!isEmployeeEditing} value={editingEmployee.name || ''} onChange={(e:any) => setEditingEmployee({...editingEmployee, name: e.target.value})} className={!isEmployeeEditing ? "bg-gray-100 text-gray-600" : ""} />
-                      <InputField label="NIP" disabled value={editingEmployee.nip || ''} className="bg-gray-100 text-gray-600" />
-                      <InputField label="Tempat Lahir" disabled={!isEmployeeEditing} value={editingEmployee.placeOfBirth || ''} onChange={(e:any) => setEditingEmployee({...editingEmployee, placeOfBirth: e.target.value})} className={!isEmployeeEditing ? "bg-gray-100 text-gray-600" : ""} />
-                      <InputField label="Tanggal Lahir" type="date" disabled={!isEmployeeEditing} value={editingEmployee.dateOfBirth || ''} onChange={(e:any) => setEditingEmployee({...editingEmployee, dateOfBirth: e.target.value})} className={!isEmployeeEditing ? "bg-gray-100 text-gray-600" : ""} />
-                      <div className="md:col-span-2">
-                        <InputField label="Alamat Lengkap" disabled={!isEmployeeEditing} value={editingEmployee.address || ''} onChange={(e:any) => setEditingEmployee({...editingEmployee, address: e.target.value})} className={!isEmployeeEditing ? "bg-gray-100 text-gray-600" : ""} />
-                      </div>
-                      <InputField label="Pendidikan Terakhir" disabled={!isEmployeeEditing} value={editingEmployee.education || ''} onChange={(e:any) => setEditingEmployee({...editingEmployee, education: e.target.value})} className={!isEmployeeEditing ? "bg-gray-100 text-gray-600" : ""} />
+                <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                  
+                  {/* Step 1 */}
+                  <div className="p-3.5 rounded-xl border border-emerald-200 bg-emerald-50/60 flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-full bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-sm">
+                      <Check size={16} />
+                    </div>
+                    <div>
+                      <p className="text-[11px] font-extrabold text-emerald-800 uppercase tracking-wide">Langkah 1</p>
+                      <p className="text-xs font-bold text-slate-800">Data Terdaftar</p>
                     </div>
                   </div>
 
+                  {/* Step 2 */}
+                  <div className={`p-3.5 rounded-xl border flex items-center gap-3 ${editingEmployee.status === 'approved' || editingEmployee.status === 'verified_by_employee' ? 'border-emerald-200 bg-emerald-50/60' : 'border-amber-300 bg-amber-50/70 ring-2 ring-amber-400/20'}`}>
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 shadow-sm ${editingEmployee.status === 'approved' || editingEmployee.status === 'verified_by_employee' ? 'bg-emerald-600 text-white' : 'bg-amber-500 text-white animate-pulse'}`}>
+                      {editingEmployee.status === 'approved' || editingEmployee.status === 'verified_by_employee' ? <Check size={16} /> : <UserCheck size={16} />}
+                    </div>
+                    <div>
+                      <p className={`text-[11px] font-extrabold uppercase tracking-wide ${editingEmployee.status === 'approved' || editingEmployee.status === 'verified_by_employee' ? 'text-emerald-800' : 'text-amber-800'}`}>Langkah 2</p>
+                      <p className="text-xs font-bold text-slate-800">Verifikasi Pegawai</p>
+                    </div>
+                  </div>
+
+                  {/* Step 3 */}
+                  <div className={`p-3.5 rounded-xl border flex items-center gap-3 ${editingEmployee.status === 'approved' ? 'border-emerald-200 bg-emerald-50/60' : editingEmployee.status === 'verified_by_employee' ? 'border-blue-300 bg-blue-50/70 ring-2 ring-blue-400/20' : 'border-slate-200 bg-slate-50'}`}>
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 shadow-sm ${editingEmployee.status === 'approved' ? 'bg-emerald-600 text-white' : editingEmployee.status === 'verified_by_employee' ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-500'}`}>
+                      {editingEmployee.status === 'approved' ? <Check size={16} /> : <ShieldCheck size={16} />}
+                    </div>
+                    <div>
+                      <p className={`text-[11px] font-extrabold uppercase tracking-wide ${editingEmployee.status === 'approved' ? 'text-emerald-800' : editingEmployee.status === 'verified_by_employee' ? 'text-blue-800' : 'text-slate-400'}`}>Langkah 3</p>
+                      <p className="text-xs font-bold text-slate-800">Verifikasi Sub Bagian</p>
+                    </div>
+                  </div>
+
+                  {/* Step 4 */}
+                  <div className={`p-3.5 rounded-xl border flex items-center gap-3 ${editingEmployee.status === 'approved' ? 'border-emerald-200 bg-emerald-50/60' : 'border-slate-200 bg-slate-50'}`}>
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 shadow-sm ${editingEmployee.status === 'approved' ? 'bg-emerald-600 text-white' : 'bg-slate-200 text-slate-500'}`}>
+                      <Printer size={16} />
+                    </div>
+                    <div>
+                      <p className={`text-[11px] font-extrabold uppercase tracking-wide ${editingEmployee.status === 'approved' ? 'text-emerald-800' : 'text-slate-400'}`}>Langkah 4</p>
+                      <p className="text-xs font-bold text-slate-800">Cetak Dokumen</p>
+                    </div>
+                  </div>
+
+                </div>
+
+                {/* Status Guidance Alert */}
+                <div className="mt-4 pt-4 border-t border-slate-100">
+                  {editingEmployee.status === 'approved' ? (
+                    <div className="flex items-start gap-3 text-xs text-emerald-800 bg-emerald-50 p-3.5 rounded-xl border border-emerald-200">
+                      <CheckCircle size={18} className="text-emerald-600 shrink-0 mt-0.5" />
+                      <div>
+                        <strong className="font-bold">Data Anda telah Terverifikasi Lengkap!</strong>
+                        <p className="mt-0.5 text-emerald-700">Perjanjian kerja telah disetujui oleh Bagian dan siap dicetak secara resmi oleh Administrator.</p>
+                      </div>
+                    </div>
+                  ) : editingEmployee.status === 'verified_by_employee' ? (
+                    <div className="flex items-start gap-3 text-xs text-blue-800 bg-blue-50 p-3.5 rounded-xl border border-blue-200">
+                      <Info size={18} className="text-blue-600 shrink-0 mt-0.5" />
+                      <div>
+                        <strong className="font-bold">Menunggu Verifikasi dari Verifikator Bagian</strong>
+                        <p className="mt-0.5 text-blue-700">Anda telah menyetujui data. Saat ini data Anda sedang dalam proses verifikasi akhir oleh Verifikator Bagian terkait.</p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex items-start gap-3 text-xs text-amber-800 bg-amber-50 p-3.5 rounded-xl border border-amber-200">
+                      <AlertTriangle size={18} className="text-amber-600 shrink-0 mt-0.5" />
+                      <div>
+                        <strong className="font-bold">Mohon Periksa Kebenaran Data di Bawah</strong>
+                        <p className="mt-0.5 text-amber-700">Pastikan NIK/NIP, Nama, Tanggal Lahir, Penempatan, dan Gaji Pokok sudah tepat. Klik <strong>"Ajukan Perbaikan"</strong> jika ada perubahan, atau <strong>"Data Sudah Benar"</strong> untuk melanjutkan.</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* 3. BENTO METRICS SUMMARY */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                
+                <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
+                    <DollarSign size={24} />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Gaji Pokok</p>
+                    <p className="text-base font-extrabold text-slate-900 truncate">Rp {Number(editingEmployee.salaryAmount || 0).toLocaleString('id-ID')}</p>
+                    <p className="text-[10px] text-slate-500 truncate italic">{editingEmployee.salaryText || 'Gaji Bulanan'}</p>
+                  </div>
+                </div>
+
+                <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center shrink-0">
+                    <MapPin size={24} />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Unit Penempatan</p>
+                    <p className="text-sm font-extrabold text-slate-900 truncate">{editingEmployee.placementUnit || editingEmployee.unit || '-'}</p>
+                    <p className="text-[10px] text-slate-500 truncate">Sesuai Surat SPMT</p>
+                  </div>
+                </div>
+
+                <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-xl bg-indigo-100 text-indigo-700 flex items-center justify-center shrink-0">
+                    <GraduationCap size={24} />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Pendidikan Terakhir</p>
+                    <p className="text-sm font-extrabold text-slate-900 truncate">{editingEmployee.education || '-'}</p>
+                    <p className="text-[10px] text-slate-500 truncate">{editingEmployee.placeOfBirth || '-'}</p>
+                  </div>
+                </div>
+
+                <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center shrink-0">
+                    <FileBadge size={24} />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">No. SK Pengangkatan</p>
+                    <p className="text-xs font-mono font-bold text-slate-900 truncate">{editingEmployee.skNumber || '-'}</p>
+                    <p className="text-[10px] text-slate-500 truncate">Tgl: {formatDisplayDate(editingEmployee.skDate || '') || '-'}</p>
+                  </div>
+                </div>
+
+              </div>
+
+              {/* 4. MAIN FORM & DETAILS CARD */}
+              <div className="bg-white rounded-2xl shadow-sm border border-slate-200/80 overflow-hidden">
+                
+                {/* Header & Tabs */}
+                <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/70 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
                   <div>
-                    <h4 className="text-xs font-bold text-emerald-700 uppercase mb-6 tracking-wider border-b pb-2 flex items-center"><LayoutDashboard size={14} className="mr-2"/> II. Data Pekerjaan</h4>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      <InputField label="Jabatan" disabled value={editingEmployee.position || ''} className="bg-gray-100 text-gray-600" />
-                      <InputField label="Unit Kerja" disabled value={editingEmployee.unit || ''} className="bg-gray-100 text-gray-600" />
-                      <div className="md:col-span-2">
-                        <SelectField 
-                          label="Unit Penempatan (SPMT)" 
+                    <h3 className="font-extrabold text-base text-slate-800 flex items-center gap-2">
+                      <FileText className="text-emerald-700" size={18}/>
+                      <span>Rincian Data Pegawai & Perjanjian Kerja</span>
+                    </h3>
+                    <p className="text-xs text-slate-500 mt-0.5">Informasi administratif kepegawaian Non-ASN</p>
+                  </div>
+
+                  {/* Section Tabs Filter */}
+                  <div className="flex items-center gap-1 bg-white p-1 rounded-xl border border-slate-200 shadow-sm">
+                    <button
+                      type="button"
+                      onClick={() => setActiveEmployeeSection('all')}
+                      className={`px-3 py-1 rounded-lg text-xs font-bold transition ${activeEmployeeSection === 'all' ? 'bg-emerald-700 text-white shadow-sm' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'}`}
+                    >
+                      Semua
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setActiveEmployeeSection('identity')}
+                      className={`px-3 py-1 rounded-lg text-xs font-bold transition ${activeEmployeeSection === 'identity' ? 'bg-emerald-700 text-white shadow-sm' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'}`}
+                    >
+                      Identitas
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setActiveEmployeeSection('job')}
+                      className={`px-3 py-1 rounded-lg text-xs font-bold transition ${activeEmployeeSection === 'job' ? 'bg-emerald-700 text-white shadow-sm' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'}`}
+                    >
+                      Pekerjaan
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setActiveEmployeeSection('sk')}
+                      className={`px-3 py-1 rounded-lg text-xs font-bold transition ${activeEmployeeSection === 'sk' ? 'bg-emerald-700 text-white shadow-sm' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'}`}
+                    >
+                      SK & SPMT
+                    </button>
+                  </div>
+                </div>
+
+                {/* Form Body */}
+                <form onSubmit={handleEmployeeSave} className="p-6 sm:p-8 space-y-8">
+                  
+                  {/* SEKSI I: DATA IDENTITAS */}
+                  {(activeEmployeeSection === 'all' || activeEmployeeSection === 'identity') && (
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between border-b border-slate-200 pb-2.5">
+                        <h4 className="text-xs font-extrabold text-emerald-800 uppercase tracking-wider flex items-center gap-2">
+                          <UserIcon size={15} className="text-emerald-700"/> I. Data Identitas Pribadi
+                        </h4>
+                        <span className="text-[11px] text-slate-400 font-medium">Sesuai KTP / Dokumen Resmi</span>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-5 pt-1">
+                        <InputField 
+                          label="Nama Lengkap" 
+                          disabled={!isEmployeeEditing} 
+                          value={editingEmployee.name || ''} 
+                          onChange={(e:any) => setEditingEmployee({...editingEmployee, name: e.target.value})} 
+                          className={!isEmployeeEditing ? "bg-slate-50 text-slate-800 font-medium border-slate-200" : "focus:border-emerald-600"} 
+                        />
+                        
+                        <InputField 
+                          label="NIP (Nomor Induk Pegawai)" 
+                          disabled 
+                          value={editingEmployee.nip || ''} 
+                          className="bg-slate-100 text-slate-600 font-mono" 
+                        />
+                        
+                        <InputField 
+                          label="Tempat Lahir" 
+                          disabled={!isEmployeeEditing} 
+                          value={editingEmployee.placeOfBirth || ''} 
+                          onChange={(e:any) => setEditingEmployee({...editingEmployee, placeOfBirth: e.target.value})} 
+                          className={!isEmployeeEditing ? "bg-slate-50 text-slate-800 font-medium border-slate-200" : "focus:border-emerald-600"} 
+                        />
+                        
+                        <DateInputField 
+                          label="Tanggal Lahir" 
+                          disabled={!isEmployeeEditing} 
+                          value={editingEmployee.dateOfBirth || ''} 
+                          onChange={(e:any) => setEditingEmployee({...editingEmployee, dateOfBirth: e.target.value})} 
+                          className={!isEmployeeEditing ? "bg-slate-50 text-slate-800 font-medium border-slate-200" : "focus:border-emerald-600"} 
+                        />
+                        
+                        <div className="md:col-span-2">
+                          <InputField 
+                            label="Alamat Lengkap" 
+                            disabled={!isEmployeeEditing} 
+                            value={editingEmployee.address || ''} 
+                            onChange={(e:any) => setEditingEmployee({...editingEmployee, address: e.target.value})} 
+                            className={!isEmployeeEditing ? "bg-slate-50 text-slate-800 font-medium border-slate-200" : "focus:border-emerald-600"} 
+                          />
+                        </div>
+                        
+                        <InputField 
+                          label="Pendidikan Terakhir" 
+                          disabled={!isEmployeeEditing} 
+                          value={editingEmployee.education || ''} 
+                          onChange={(e:any) => setEditingEmployee({...editingEmployee, education: e.target.value})} 
+                          className={!isEmployeeEditing ? "bg-slate-50 text-slate-800 font-medium border-slate-200" : "focus:border-emerald-600"} 
+                        />
+
+                        <InputField 
+                          label="Status Kepegawaian" 
+                          disabled 
+                          value="Tenaga Non-ASN / Pegawai Perjanjian Kerja" 
+                          className="bg-slate-100 text-slate-600 font-medium" 
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* SEKSI II: DATA PEKERJAAN & GAJI */}
+                  {(activeEmployeeSection === 'all' || activeEmployeeSection === 'job') && (
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between border-b border-slate-200 pb-2.5">
+                        <h4 className="text-xs font-extrabold text-emerald-800 uppercase tracking-wider flex items-center gap-2">
+                          <Briefcase size={15} className="text-emerald-700"/> II. Data Pekerjaan & Penempatan
+                        </h4>
+                        <span className="text-[11px] text-slate-400 font-medium">Penetapan Unit & Hak Keuangan</span>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-5 pt-1">
+                        <InputField 
+                          label="Jabatan" 
+                          disabled 
+                          value={editingEmployee.position || ''} 
+                          className="bg-slate-100 text-slate-600 font-medium" 
+                        />
+                        
+                        <InputField 
+                          label="Unit Kerja Induk" 
+                          disabled 
+                          value={editingEmployee.unit || 'Sekretariat Daerah Kabupaten Demak'} 
+                          className="bg-slate-100 text-slate-600 font-medium" 
+                        />
+                        
+                        <div className="md:col-span-2">
+                          <SelectField 
+                            label="Unit Penempatan (Sesuai SPMT)" 
+                            disabled={true} 
+                            value={editingEmployee.placementUnit || ''} 
+                            onChange={(e:any) => setEditingEmployee({...editingEmployee, placementUnit: e.target.value})}
+                            className="bg-slate-100 text-slate-600 font-medium"
+                          >
+                             <option value="">-- Pilih Unit Penempatan --</option>
+                             {PLACEMENT_UNITS.map(unit => (
+                                <option key={unit} value={unit}>{unit}</option>
+                             ))}
+                          </SelectField>
+                        </div>
+                        
+                        <InputField 
+                          label="Gaji Pokok Bulanan" 
+                          disabled 
+                          value={`Rp ${Number(editingEmployee.salaryAmount || 0).toLocaleString('id-ID')}`} 
+                          className="bg-slate-100 text-slate-900 font-bold" 
+                        />
+
+                        <InputField 
+                          label="Gaji Terbilang" 
+                          disabled 
+                          value={editingEmployee.salaryText || '-'} 
+                          className="bg-slate-100 text-slate-600 italic" 
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* SEKSI III: DATA SK & SPMT */}
+                  {(activeEmployeeSection === 'all' || activeEmployeeSection === 'sk') && (
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between border-b border-slate-200 pb-2.5">
+                        <h4 className="text-xs font-extrabold text-emerald-800 uppercase tracking-wider flex items-center gap-2">
+                          <Stamp size={15} className="text-emerald-700"/> III. Data Legalitas SK & SPMT
+                        </h4>
+                        <span className="text-[11px] text-slate-400 font-medium">Dasar Hukum Penugasan</span>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-5 pt-1">
+                        <InputField 
+                          label="Nomor SPMT" 
+                          placeholder="Contoh: 821/..." 
                           disabled={true} 
-                          value={editingEmployee.placementUnit || ''} 
-                          onChange={(e:any) => setEditingEmployee({...editingEmployee, placementUnit: e.target.value})}
-                          className="bg-gray-100 text-gray-600"
-                        >
-                           <option value="">-- Pilih Unit Penempatan --</option>
-                           {PLACEMENT_UNITS.map(unit => (
-                              <option key={unit} value={unit}>{unit}</option>
-                           ))}
-                        </SelectField>
+                          value={editingEmployee.spmtNumber || ''} 
+                          onChange={(e:any) => setEditingEmployee({...editingEmployee, spmtNumber: e.target.value})} 
+                          className="bg-slate-100 text-slate-600 font-mono" 
+                        />
+                        
+                        <DateInputField 
+                          label="Tanggal SPMT (Melaksanakan Tugas)" 
+                          disabled={!isEmployeeEditing} 
+                          value={editingEmployee.spmtDate || ''} 
+                          onChange={(e:any) => setEditingEmployee({...editingEmployee, spmtDate: e.target.value})} 
+                          className={!isEmployeeEditing ? "bg-slate-50 text-slate-800 font-medium border-slate-200" : "focus:border-emerald-600"} 
+                        />
+                        
+                        <InputField 
+                          label="Nomor SK Pengangkatan" 
+                          placeholder="Contoh: 810/..." 
+                          disabled={!isEmployeeEditing} 
+                          value={editingEmployee.skNumber || ''} 
+                          onChange={(e:any) => setEditingEmployee({...editingEmployee, skNumber: e.target.value})} 
+                          className={!isEmployeeEditing ? "bg-slate-50 text-slate-800 font-medium border-slate-200" : "focus:border-emerald-600"} 
+                        />
+                        
+                        <DateInputField 
+                          label="Tanggal Penetapan SK" 
+                          disabled={!isEmployeeEditing} 
+                          value={editingEmployee.skDate || ''} 
+                          onChange={(e:any) => setEditingEmployee({...editingEmployee, skDate: e.target.value})} 
+                          className={!isEmployeeEditing ? "bg-slate-50 text-slate-800 font-medium border-slate-200" : "focus:border-emerald-600"} 
+                        />
+                        
+                        <div className="md:col-span-2">
+                          <DateInputField 
+                            label="TMT Pengangkatan" 
+                            disabled={!isEmployeeEditing} 
+                            value={editingEmployee.tmtDate || ''} 
+                            onChange={(e:any) => setEditingEmployee({...editingEmployee, tmtDate: e.target.value})} 
+                            className={!isEmployeeEditing ? "bg-slate-50 text-slate-800 font-medium border-slate-200" : "focus:border-emerald-600"} 
+                          />
+                        </div>
                       </div>
-                      <InputField label="Gaji Pokok" disabled value={`Rp. ${editingEmployee.salaryAmount || '0'}`} className="bg-gray-100 text-gray-500 font-medium" />
                     </div>
-                  </div>
+                  )}
 
-                  <div>
-                    <h4 className="text-xs font-bold text-emerald-700 uppercase mb-6 tracking-wider border-b pb-2 flex items-center"><Briefcase size={14} className="mr-2"/> III. Data SK & SPMT</h4>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      <InputField label="Nomor SPMT" placeholder="Contoh: 821/..." disabled={true} value={editingEmployee.spmtNumber || ''} onChange={(e:any) => setEditingEmployee({...editingEmployee, spmtNumber: e.target.value})} className="bg-gray-100 text-gray-600" />
-                      <InputField type="date" label="Tanggal SPMT (Melaksanakan Tugas)" disabled={!isEmployeeEditing} value={editingEmployee.spmtDate || ''} onChange={(e:any) => setEditingEmployee({...editingEmployee, spmtDate: e.target.value})} className={!isEmployeeEditing ? "bg-white border-gray-300" : "bg-gray-100 text-gray-600"} />
-                      <InputField label="Nomor SK Pengangkatan" placeholder="Contoh: 810/..." disabled={!isEmployeeEditing} value={editingEmployee.skNumber || ''} onChange={(e:any) => setEditingEmployee({...editingEmployee, skNumber: e.target.value})} className={!isEmployeeEditing ? "bg-gray-100 text-gray-600" : ""} />
-                      <InputField type="date" label="Tanggal SK" disabled={!isEmployeeEditing} value={editingEmployee.skDate || ''} onChange={(e:any) => setEditingEmployee({...editingEmployee, skDate: e.target.value})} className={!isEmployeeEditing ? "bg-gray-100 text-gray-600" : ""} />
-                      <div className="md:col-span-2">
-                        <InputField type="date" label="TMT Pengangkatan" disabled={!isEmployeeEditing} value={editingEmployee.tmtDate || ''} onChange={(e:any) => setEditingEmployee({...editingEmployee, tmtDate: e.target.value})} className={!isEmployeeEditing ? "bg-gray-100 text-gray-600" : ""} />
-                      </div>
-                    </div>
-                  </div>
-
+                  {/* ACTION BAR PEGAWAI */}
                   {editingEmployee.status === 'pending' && (
-                    <div className="flex justify-end gap-4 pt-6 border-t border-gray-100">
+                    <div className="flex flex-col sm:flex-row justify-end items-stretch sm:items-center gap-3 pt-6 border-t border-slate-200">
                       {!isEmployeeEditing ? (
                         <>
-                          <button type="button" onClick={() => setIsEmployeeEditing(true)} className="px-6 py-3 bg-white border border-amber-500 text-amber-700 hover:bg-amber-50 rounded-xl font-bold flex items-center transition shadow-sm">
-                            <Edit2 size={18} className="mr-2"/> Ajukan Perbaikan Data
+                          <button 
+                            type="button" 
+                            onClick={() => setIsEmployeeEditing(true)} 
+                            className="px-5 py-3 bg-white border border-amber-500 text-amber-800 hover:bg-amber-50 rounded-xl font-bold flex items-center justify-center transition shadow-sm cursor-pointer"
+                          >
+                            <Edit2 size={16} className="mr-2 text-amber-600"/> Ajukan Perbaikan Data
                           </button>
                           <button 
                             type="button" 
                             onClick={() => setIsEmployeeApproveModalOpen(true)}
                             disabled={isSaving}
-                            className={`px-6 py-3 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl font-bold flex items-center transition shadow-lg shadow-emerald-200 ${isSaving ? 'opacity-75 cursor-not-allowed' : ''}`}
+                            className={`px-6 py-3 bg-gradient-to-r from-emerald-700 to-emerald-800 hover:from-emerald-800 hover:to-emerald-900 text-white rounded-xl font-bold flex items-center justify-center transition shadow-lg shadow-emerald-900/20 cursor-pointer ${isSaving ? 'opacity-75 cursor-not-allowed' : ''}`}
                           >
                             <CheckCircle size={18} className="mr-2"/>
-                            Data Sudah Benar
+                            Data Sudah Benar & Setujui
                           </button>
                         </>
                       ) : (
                         <>
-                          <button type="button" onClick={() => { setIsEmployeeEditing(false); setEditingEmployee({...employeeFormData!}); }} className="px-6 py-3 bg-gray-100 hover:bg-gray-200 text-gray-800 rounded-xl font-bold transition">
+                          <button 
+                            type="button" 
+                            onClick={() => { setIsEmployeeEditing(false); setEditingEmployee({...employeeFormData!}); }} 
+                            className="px-5 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold transition cursor-pointer"
+                          >
                             Batal
                           </button>
-                          <button type="submit" disabled={isSaving} className="px-6 py-3 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl font-bold flex items-center transition shadow-lg shadow-emerald-200">
-                            {isSaving ? <Loader2 className="animate-spin mr-2"/> : <Save size={18} className="mr-2"/>}
+                          <button 
+                            type="submit" 
+                            disabled={isSaving} 
+                            className="px-6 py-3 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl font-bold flex items-center justify-center transition shadow-lg shadow-emerald-900/20 cursor-pointer"
+                          >
+                            {isSaving ? <Loader2 className="animate-spin mr-2" size={18}/> : <Save size={18} className="mr-2"/>}
                             Simpan Perubahan
                           </button>
                         </>
                       )}
                     </div>
                   )}
+
+                  {/* KETIKA SUDAH DISETUJUI / VERIFIED: BUTTON PREVIEW DRAFT DOKUMEN */}
+                  {editingEmployee.status !== 'pending' && (
+                    <div className="pt-6 border-t border-slate-200 flex flex-col sm:flex-row justify-between items-center gap-3">
+                      <div className="flex items-center gap-2 text-xs text-slate-500">
+                        <CheckCheck size={16} className="text-emerald-600" />
+                        <span>Data terkunci karena telah disetujui untuk proses penerbitan perjanjian kerja.</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setPreviewEmployee(editingEmployee as Employee)}
+                        className="w-full sm:w-auto px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition shadow-sm cursor-pointer"
+                      >
+                        <Eye size={15} /> Lihat Preview Draft Dokumen
+                      </button>
+                    </div>
+                  )}
+
                 </form>
               </div>
+
             </div>
           )}
 
@@ -1504,12 +1998,12 @@ export default function App() {
                       <p className="text-emerald-100 opacity-90 mt-1">Import data pegawai dari Excel atau tambahkan secara manual.</p>
                     </div>
                     {user.role === 'admin' && (
-                      <button onClick={() => setView('employees')} className="bg-white text-emerald-800 px-6 py-3 rounded-xl font-bold hover:bg-emerald-50 transition shadow-lg flex items-center">
+                      <button onClick={() => setView('employees')} className="bg-white text-emerald-800 px-6 py-3 rounded-xl font-bold hover:bg-emerald-50 transition shadow-lg flex items-center cursor-pointer">
                          Kelola Data Pegawai <ChevronRight className="ml-2" size={18} />
                       </button>
                     )}
                     {user.role === 'verifikator' && (
-                      <button onClick={() => setView('print')} className="bg-white text-emerald-800 px-6 py-3 rounded-xl font-bold hover:bg-emerald-50 transition shadow-lg flex items-center">
+                      <button onClick={() => setView('print')} className="bg-white text-emerald-800 px-6 py-3 rounded-xl font-bold hover:bg-emerald-50 transition shadow-lg flex items-center cursor-pointer">
                          Mulai Verifikasi <ChevronRight className="ml-2" size={18} />
                       </button>
                     )}
@@ -1518,96 +2012,308 @@ export default function App() {
             </div>
           )}
 
-          {/* --- ADMIN: EMPLOYEES LIST --- */}
+          {/* --- ADMIN: DATA PEGAWAI (MODERN ENTERPRISE LIST) --- */}
           {user.role === 'admin' && view === 'employees' && (
             <div className="space-y-6">
-              <div className="flex flex-col md:flex-row justify-between items-center gap-4">
+              
+              {/* Top Header & Action Buttons */}
+              <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm">
                 <div>
-                   <h2 className="text-2xl font-bold text-slate-800">Data Pegawai</h2>
-                   <p className="text-gray-500 text-sm">Kelola data dan status verifikasi</p>
+                   <h2 className="text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2.5">
+                     <Users size={24} className="text-emerald-700" /> Data Pegawai Non-ASN
+                   </h2>
+                   <p className="text-slate-500 text-xs sm:text-sm mt-0.5">Kelola seluruh basis data pegawai, perpanjangan perjanjian kerja, dan status verifikasi</p>
                 </div>
-                <div className="flex flex-wrap gap-2 justify-end">
-                  <button onClick={handleDownloadTemplate} className="bg-emerald-700 hover:bg-emerald-800 text-white px-4 py-2.5 rounded-lg flex items-center text-sm font-bold shadow-sm transition">
-                    <FileSpreadsheet size={18} className="mr-2"/> Template
+                <div className="flex flex-wrap items-center gap-2.5 w-full md:w-auto">
+                  <button 
+                    onClick={handleDownloadTemplate} 
+                    className="bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 px-3.5 py-2.5 rounded-xl flex items-center text-xs font-bold shadow-sm transition hover:border-slate-400 cursor-pointer"
+                    title="Unduh format file Excel template import"
+                  >
+                    <FileSpreadsheet size={16} className="mr-2 text-emerald-600"/> Template Excel
                   </button>
-                  <label className="bg-emerald-800 hover:bg-emerald-900 text-white px-4 py-2.5 rounded-lg flex items-center text-sm font-bold cursor-pointer shadow-sm transition">
-                    {isImporting ? <Loader2 className="animate-spin mr-2"/> : <Upload size={18} className="mr-2"/>}
+                  <label className="bg-slate-900 hover:bg-slate-800 text-white px-4 py-2.5 rounded-xl flex items-center text-xs font-bold cursor-pointer shadow-sm transition">
+                    {isImporting ? <Loader2 className="animate-spin mr-2" size={16}/> : <Upload size={16} className="mr-2 text-emerald-400"/>}
                     Import Excel
                     <input type="file" ref={importInputRef} onChange={handleImportExcel} accept=".xlsx,.xls" className="hidden"/>
                   </label>
-                  <button onClick={() => { setEditingEmployee({}); setIsModalOpen(true); }} className="bg-emerald-700 hover:bg-emerald-800 text-white px-4 py-2.5 rounded-lg flex items-center text-sm font-bold shadow-sm transition">
-                    <Plus size={18} className="mr-2"/> Manual
+                  <button 
+                    onClick={() => { setEditingEmployee({}); setIsModalOpen(true); }} 
+                    className="bg-gradient-to-r from-emerald-700 to-emerald-800 hover:from-emerald-800 hover:to-emerald-900 text-white px-4 py-2.5 rounded-xl flex items-center text-xs font-bold shadow-lg shadow-emerald-900/20 transition cursor-pointer"
+                  >
+                    <Plus size={16} className="mr-1.5"/> Tambah Pegawai
                   </button>
                 </div>
               </div>
 
-              {/* Search & Filter Bar */}
-              <div className="flex flex-col md:flex-row gap-3 items-center justify-between">
-                <div className="relative w-full md:w-72">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" size={18} />
-                  <input 
-                    type="text" 
-                    placeholder="Cari Nama atau NIP..." 
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2.5 rounded-lg border border-gray-300 bg-white text-black focus:outline-none focus:ring-2 focus:ring-emerald-600 shadow-sm transition text-sm font-medium"
-                  />
-                </div>
-
-                <select 
-                  value={unitFilter}
-                  onChange={(e) => { setUnitFilter(e.target.value); setCurrentPage(1); }}
-                  className="w-full md:w-64 py-2.5 px-3 rounded-lg border border-gray-300 bg-white text-black text-sm font-medium focus:ring-2 focus:ring-emerald-600 outline-none shadow-sm"
+              {/* Stat Summary Cards Row */}
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                
+                <button 
+                  onClick={() => { setStatusFilter('all'); setCurrentPage(1); }}
+                  className={`p-4 rounded-2xl border text-left transition-all cursor-pointer ${statusFilter === 'all' ? 'bg-slate-900 text-white border-slate-900 shadow-md ring-2 ring-slate-900/20' : 'bg-white text-slate-800 border-slate-200 hover:border-slate-300 shadow-sm'}`}
                 >
-                  <option value="all">Semua Bagian / Unit</option>
-                  {PLACEMENT_UNITS.map(unit => (
-                    <option key={unit} value={unit}>{unit}</option>
-                  ))}
-                </select>
+                  <div className="flex items-center justify-between">
+                    <span className={`text-[11px] font-bold uppercase tracking-wider ${statusFilter === 'all' ? 'text-slate-300' : 'text-slate-400'}`}>Semua Pegawai</span>
+                    <Users size={16} className={statusFilter === 'all' ? 'text-slate-300' : 'text-slate-400'} />
+                  </div>
+                  <p className="text-2xl font-black mt-2">{employees.length}</p>
+                  <p className={`text-[10px] mt-0.5 ${statusFilter === 'all' ? 'text-slate-400' : 'text-slate-500'}`}>Total pegawai terdaftar</p>
+                </button>
+
+                <button 
+                  onClick={() => { setStatusFilter('approved'); setCurrentPage(1); }}
+                  className={`p-4 rounded-2xl border text-left transition-all cursor-pointer ${statusFilter === 'approved' ? 'bg-emerald-700 text-white border-emerald-700 shadow-md ring-2 ring-emerald-700/20' : 'bg-white text-slate-800 border-slate-200 hover:border-emerald-300 shadow-sm'}`}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className={`text-[11px] font-bold uppercase tracking-wider ${statusFilter === 'approved' ? 'text-emerald-100' : 'text-emerald-700'}`}>Siap Cetak</span>
+                    <CheckCircle size={16} className={statusFilter === 'approved' ? 'text-emerald-200' : 'text-emerald-600'} />
+                  </div>
+                  <p className="text-2xl font-black mt-2">{countApproved}</p>
+                  <p className={`text-[10px] mt-0.5 ${statusFilter === 'approved' ? 'text-emerald-200' : 'text-slate-500'}`}>Verifikasi lengkap</p>
+                </button>
+
+                <button 
+                  onClick={() => { setStatusFilter('verified_by_employee'); setCurrentPage(1); }}
+                  className={`p-4 rounded-2xl border text-left transition-all cursor-pointer ${statusFilter === 'verified_by_employee' ? 'bg-blue-700 text-white border-blue-700 shadow-md ring-2 ring-blue-700/20' : 'bg-white text-slate-800 border-slate-200 hover:border-blue-300 shadow-sm'}`}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className={`text-[11px] font-bold uppercase tracking-wider ${statusFilter === 'verified_by_employee' ? 'text-blue-100' : 'text-blue-700'}`}>Dicek Pegawai</span>
+                    <UserCheck size={16} className={statusFilter === 'verified_by_employee' ? 'text-blue-200' : 'text-blue-600'} />
+                  </div>
+                  <p className="text-2xl font-black mt-2">{countVerified}</p>
+                  <p className={`text-[10px] mt-0.5 ${statusFilter === 'verified_by_employee' ? 'text-blue-200' : 'text-slate-500'}`}>Menunggu Verifikator</p>
+                </button>
+
+                <button 
+                  onClick={() => { setStatusFilter('pending'); setCurrentPage(1); }}
+                  className={`p-4 rounded-2xl border text-left transition-all cursor-pointer ${statusFilter === 'pending' ? 'bg-amber-600 text-white border-amber-600 shadow-md ring-2 ring-amber-600/20' : 'bg-white text-slate-800 border-slate-200 hover:border-amber-300 shadow-sm'}`}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className={`text-[11px] font-bold uppercase tracking-wider ${statusFilter === 'pending' ? 'text-amber-100' : 'text-amber-700'}`}>Pending</span>
+                    <Clock size={16} className={statusFilter === 'pending' ? 'text-amber-200' : 'text-amber-600'} />
+                  </div>
+                  <p className="text-2xl font-black mt-2">{countPending}</p>
+                  <p className={`text-[10px] mt-0.5 ${statusFilter === 'pending' ? 'text-amber-200' : 'text-slate-500'}`}>Belum dicek pegawai</p>
+                </button>
+
               </div>
 
-              <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+              {/* Search & Filter Toolbar */}
+              <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm flex flex-col md:flex-row gap-3 items-stretch md:items-center justify-between">
+                
+                {/* Search Bar */}
+                <div className="relative flex-1 max-w-md">
+                  <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                  <input 
+                    type="text" 
+                    placeholder="Cari nama, NIP, jabatan, atau bagian..." 
+                    value={searchTerm}
+                    onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
+                    className="w-full pl-10 pr-9 py-2.5 rounded-xl border border-slate-200 bg-slate-50/50 text-slate-900 placeholder:text-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-600 focus:border-emerald-600 text-xs sm:text-sm font-medium transition shadow-sm"
+                  />
+                  {searchTerm && (
+                    <button 
+                      onClick={() => { setSearchTerm(''); setCurrentPage(1); }}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5"
+                    >
+                      <X size={14} />
+                    </button>
+                  )}
+                </div>
+
+                {/* Filters */}
+                <div className="flex flex-wrap items-center gap-2.5">
+                  <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl px-3 py-1 text-slate-600">
+                    <Filter size={14} className="text-slate-400 shrink-0" />
+                    <select 
+                      value={unitFilter}
+                      onChange={(e) => { setUnitFilter(e.target.value); setCurrentPage(1); }}
+                      className="bg-transparent text-xs sm:text-sm font-semibold text-slate-800 outline-none cursor-pointer py-1.5"
+                    >
+                      <option value="all">Semua Bagian / Unit Penempatan</option>
+                      {PLACEMENT_UNITS.map(unit => (
+                        <option key={unit} value={unit}>{unit}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Reset Filter Button */}
+                  {(searchTerm || unitFilter !== 'all' || statusFilter !== 'all') && (
+                    <button 
+                      onClick={() => { setSearchTerm(''); setUnitFilter('all'); setStatusFilter('all'); setCurrentPage(1); }}
+                      className="px-3 py-2 rounded-xl text-xs font-bold text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 transition"
+                    >
+                      Reset Filter
+                    </button>
+                  )}
+                </div>
+
+              </div>
+
+              {/* Data Table */}
+              <div className="bg-white rounded-2xl shadow-sm border border-slate-200/80 overflow-hidden">
                 <div className="overflow-x-auto">
                   <table className="w-full text-left border-collapse">
-                    <thead className="bg-gray-50 border-b border-gray-200">
-                      <tr>
-                        <th className="p-4 text-xs font-bold text-gray-500 uppercase tracking-wide">Nama / NIP</th>
-                        <th className="p-4 text-xs font-bold text-gray-500 uppercase tracking-wide">Jabatan</th>
-                        <th className="p-4 text-xs font-bold text-gray-500 uppercase tracking-wide">Unit Kerja</th>
-                        <th className="p-4 text-xs font-bold text-gray-500 uppercase tracking-wide">Status</th>
-                        <th className="p-4 text-xs font-bold text-gray-500 uppercase tracking-wide text-right">Aksi</th>
+                    <thead>
+                      <tr className="bg-slate-50/80 border-b border-slate-200/80 text-[11px] font-extrabold text-slate-500 uppercase tracking-wider">
+                        <th className="py-4 px-5">Pegawai</th>
+                        <th className="py-4 px-5">Jabatan & Pendidikan</th>
+                        <th className="py-4 px-5">Unit Kerja / Penempatan</th>
+                        <th className="py-4 px-5">Status Verifikasi</th>
+                        <th className="py-4 px-5 text-right">Aksi</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-gray-100">
+                    <tbody className="divide-y divide-slate-100 text-sm">
                       {paginatedEmployees.map(emp => (
-                        <tr key={emp.id} className="hover:bg-gray-50/80 transition">
-                          <td className="p-4">
-                            <div className="font-bold text-gray-900">{emp.name}</div>
-                            <div className="text-xs font-mono text-gray-500 mt-0.5">{emp.nip}</div>
-                          </td>
-                          <td className="p-4 text-sm text-gray-700">{emp.position}</td>
-                          <td className="p-4 text-sm text-gray-700">{emp.unit}</td>
-                          <td className="p-4">
-                            <span className={`px-2.5 py-1 rounded-full text-xs font-bold border ${emp.status === 'approved' ? 'bg-green-50 text-green-700 border-green-200' : (emp.status === 'verified_by_employee' ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-yellow-50 text-yellow-700 border-yellow-200')}`}>
-                              {emp.status === 'approved' ? 'Terverifikasi' : (emp.status === 'verified_by_employee' ? 'Dicek Pegawai' : 'Pending')}
-                            </span>
-                          </td>
-                          <td className="p-4 text-right">
-                            <div className="flex justify-end gap-2">
-                              <button onClick={() => handleStatusChangeClick(emp)} className="p-2 text-orange-600 hover:bg-orange-50 rounded-lg transition" title="Ubah Status"><RefreshCw size={16} /></button>
-                              <button onClick={() => { setEditingEmployee(emp); setIsModalOpen(true); }} className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition" title="Edit Data"><Edit2 size={16} /></button>
-                              <button onClick={() => handleDeleteClick(emp.id)} className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition" title="Hapus Data"><Trash2 size={16} /></button>
+                        <tr key={emp.id} className="hover:bg-slate-50/70 transition-colors group">
+                          
+                          {/* Col 1: Nama & NIP */}
+                          <td className="py-4 px-5">
+                            <div className="flex items-center gap-3">
+                              <div className={`w-10 h-10 rounded-xl bg-gradient-to-tr ${getAvatarBg(emp.name)} flex items-center justify-center font-bold text-xs shadow-sm shrink-0`}>
+                                {getInitials(emp.name)}
+                              </div>
+                              <div className="min-w-0">
+                                <div className="font-bold text-slate-900 group-hover:text-emerald-700 transition-colors flex items-center gap-1.5">
+                                  <span>{emp.name}</span>
+                                </div>
+                                <div className="flex items-center gap-1.5 mt-0.5">
+                                  <span className="font-mono text-xs text-slate-500 bg-slate-100 px-2 py-0.5 rounded border border-slate-200/60">
+                                    {emp.nip}
+                                  </span>
+                                  <button 
+                                    onClick={() => handleCopyText(emp.nip, `NIP ${emp.name}`)} 
+                                    className="text-slate-400 hover:text-slate-700 p-0.5" 
+                                    title="Salin NIP"
+                                  >
+                                    <Copy size={11} />
+                                  </button>
+                                </div>
+                              </div>
                             </div>
                           </td>
+
+                          {/* Col 2: Jabatan & Pendidikan */}
+                          <td className="py-4 px-5">
+                            <div className="font-semibold text-slate-800 text-xs sm:text-sm">{emp.position || '-'}</div>
+                            <div className="text-xs text-slate-400 mt-0.5 flex items-center gap-1">
+                              <GraduationCap size={12} />
+                              <span>{emp.education || '-'}</span>
+                            </div>
+                          </td>
+
+                          {/* Col 3: Unit Kerja / Penempatan */}
+                          <td className="py-4 px-5">
+                            <span className="inline-flex items-center gap-1 text-xs font-semibold text-slate-700 bg-slate-100 px-2.5 py-1 rounded-lg border border-slate-200">
+                              <Building2 size={12} className="text-slate-400 shrink-0" />
+                              <span className="truncate max-w-[200px]">{emp.placementUnit || emp.unit || '-'}</span>
+                            </span>
+                            {emp.salaryAmount && (
+                              <div className="text-[11px] text-slate-400 mt-1 font-mono">
+                                Rp {Number(emp.salaryAmount).toLocaleString('id-ID')}
+                              </div>
+                            )}
+                          </td>
+
+                          {/* Col 4: Status Verifikasi */}
+                          <td className="py-4 px-5">
+                            {emp.status === 'approved' ? (
+                              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                                Siap Cetak
+                              </span>
+                            ) : emp.status === 'verified_by_employee' ? (
+                              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200">
+                                <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
+                                Dicek Pegawai
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                                <span className="w-2 h-2 rounded-full bg-amber-500" />
+                                Pending
+                              </span>
+                            )}
+                          </td>
+
+                          {/* Col 5: Aksi */}
+                          <td className="py-4 px-5 text-right">
+                            <div className="flex items-center justify-end gap-1.5">
+                              
+                              <button 
+                                onClick={() => setPreviewEmployee(emp)} 
+                                className="p-2 text-slate-600 hover:text-emerald-700 hover:bg-emerald-50 rounded-xl transition border border-transparent hover:border-emerald-200 cursor-pointer" 
+                                title="Lihat Preview Dokumen"
+                              >
+                                <Eye size={16} />
+                              </button>
+
+                              <button 
+                                onClick={() => handleStatusChangeClick(emp)} 
+                                className="p-2 text-orange-600 hover:bg-orange-50 rounded-xl transition border border-transparent hover:border-orange-200 cursor-pointer" 
+                                title="Ubah Status Verifikasi"
+                              >
+                                <RefreshCw size={16} />
+                              </button>
+
+                              <button 
+                                onClick={() => { setEditingEmployee(emp); setIsModalOpen(true); }} 
+                                className="p-2 text-blue-600 hover:bg-blue-50 rounded-xl transition border border-transparent hover:border-blue-200 cursor-pointer" 
+                                title="Edit Data Pegawai"
+                              >
+                                <Edit2 size={16} />
+                              </button>
+
+                              <button 
+                                onClick={() => handleDeleteClick(emp.id)} 
+                                className="p-2 text-rose-600 hover:bg-rose-50 rounded-xl transition border border-transparent hover:border-rose-200 cursor-pointer" 
+                                title="Hapus Data Pegawai"
+                              >
+                                <Trash2 size={16} />
+                              </button>
+
+                            </div>
+                          </td>
+
                         </tr>
                       ))}
+
                       {paginatedEmployees.length === 0 && (
                         <tr>
-                          <td colSpan={5} className="p-12 text-center text-gray-400">
-                             <div className="flex flex-col items-center">
-                               <Users size={48} className="text-gray-200 mb-4"/>
-                               <p>{searchTerm ? 'Data tidak ditemukan.' : 'Belum ada data pegawai.'}</p>
-                               {!searchTerm && <p className="text-xs mt-1">Silakan import excel atau tambah manual.</p>}
+                          <td colSpan={5} className="py-16 px-4 text-center">
+                             <div className="flex flex-col items-center justify-center max-w-sm mx-auto">
+                               <div className="w-16 h-16 bg-slate-100 rounded-2xl flex items-center justify-center text-slate-400 mb-3 border border-slate-200">
+                                 <Users size={32} />
+                                </div>
+                               <h4 className="font-bold text-slate-800 text-base">
+                                 {searchTerm || unitFilter !== 'all' || statusFilter !== 'all' ? 'Data Tidak Ditemukan' : 'Belum Ada Data Pegawai'}
+                               </h4>
+                               <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+                                 {searchTerm || unitFilter !== 'all' || statusFilter !== 'all'
+                                   ? 'Coba sesuaikan kata kunci pencarian atau ubah filter bagian/status.'
+                                   : 'Mulai dengan mengimpor file Excel data pegawai atau tambahkan pegawai secara manual.'}
+                               </p>
+                               {searchTerm || unitFilter !== 'all' || statusFilter !== 'all' ? (
+                                 <button 
+                                   onClick={() => { setSearchTerm(''); setUnitFilter('all'); setStatusFilter('all'); }}
+                                   className="mt-4 px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-bold transition cursor-pointer"
+                                 >
+                                   Reset Semua Filter
+                                 </button>
+                               ) : (
+                                 <div className="mt-4 flex gap-2">
+                                   <label className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition cursor-pointer flex items-center gap-1.5">
+                                     <Upload size={14} /> Import Excel
+                                     <input type="file" ref={importInputRef} onChange={handleImportExcel} accept=".xlsx,.xls" className="hidden"/>
+                                   </label>
+                                   <button 
+                                     onClick={() => { setEditingEmployee({}); setIsModalOpen(true); }}
+                                     className="px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-bold transition cursor-pointer flex items-center gap-1.5"
+                                   >
+                                     <Plus size={14} /> Tambah Manual
+                                   </button>
+                                 </div>
+                               )}
                              </div>
                           </td>
                         </tr>
@@ -1617,28 +2323,47 @@ export default function App() {
                 </div>
 
                 {/* Pagination Control */}
-                {filteredEmployees.length > ITEMS_PER_PAGE && (
-                  <div className="p-4 border-t border-gray-100 bg-gray-50 flex items-center justify-between">
-                     <span className="text-sm text-gray-600">
-                       Menampilkan {((currentPage - 1) * ITEMS_PER_PAGE) + 1} - {Math.min(currentPage * ITEMS_PER_PAGE, filteredEmployees.length)} dari {filteredEmployees.length} data
+                {filteredEmployees.length > 0 && (
+                  <div className="p-4 border-t border-slate-100 bg-slate-50/60 flex flex-col sm:flex-row items-center justify-between gap-3">
+                     <span className="text-xs font-medium text-slate-500">
+                       Menampilkan <strong className="text-slate-800">{((currentPage - 1) * ITEMS_PER_PAGE) + 1}</strong> - <strong className="text-slate-800">{Math.min(currentPage * ITEMS_PER_PAGE, filteredEmployees.length)}</strong> dari <strong className="text-slate-800">{filteredEmployees.length}</strong> pegawai
                      </span>
-                     <div className="flex gap-2">
+                     <div className="flex items-center gap-1.5">
                        <button 
                          onClick={() => setCurrentPage(c => Math.max(1, c - 1))} 
                          disabled={currentPage === 1}
-                         className={`p-2 rounded-lg border border-gray-200 ${currentPage === 1 ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-white hover:bg-gray-50 text-gray-700 shadow-sm'}`}
+                         className={`p-2 rounded-xl border text-xs font-bold transition ${currentPage === 1 ? 'bg-slate-100 text-slate-300 border-slate-200 cursor-not-allowed' : 'bg-white hover:bg-slate-100 text-slate-700 border-slate-200 shadow-sm cursor-pointer'}`}
+                         title="Halaman Sebelumnya"
                        >
-                         <ChevronLeft size={18} />
+                         <ChevronLeft size={16} />
                        </button>
-                       <span className="px-4 py-2 bg-white border border-gray-200 rounded-lg text-sm font-bold text-emerald-700 shadow-sm">
-                         {currentPage}
-                       </span>
+                       
+                       {Array.from({ length: totalPages }, (_, i) => i + 1)
+                         .filter(p => p === 1 || p === totalPages || Math.abs(p - currentPage) <= 1)
+                         .map((pageNum, idx, arr) => {
+                           const prev = arr[idx - 1];
+                           return (
+                             <React.Fragment key={pageNum}>
+                               {prev && pageNum - prev > 1 && (
+                                 <span className="px-2 text-slate-400 text-xs">...</span>
+                               )}
+                               <button
+                                 onClick={() => setCurrentPage(pageNum)}
+                                 className={`w-8 h-8 rounded-xl text-xs font-bold transition cursor-pointer ${currentPage === pageNum ? 'bg-emerald-700 text-white shadow-sm' : 'bg-white hover:bg-slate-100 text-slate-700 border border-slate-200'}`}
+                               >
+                                 {pageNum}
+                               </button>
+                             </React.Fragment>
+                           );
+                         })}
+
                        <button 
                          onClick={() => setCurrentPage(c => Math.min(totalPages, c + 1))} 
                          disabled={currentPage === totalPages}
-                         className={`p-2 rounded-lg border border-gray-200 ${currentPage === totalPages ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-white hover:bg-gray-50 text-gray-700 shadow-sm'}`}
+                         className={`p-2 rounded-xl border text-xs font-bold transition ${currentPage === totalPages ? 'bg-slate-100 text-slate-300 border-slate-200 cursor-not-allowed' : 'bg-white hover:bg-slate-100 text-slate-700 border-slate-200 shadow-sm cursor-pointer'}`}
+                         title="Halaman Berikutnya"
                        >
-                         <ChevronRight size={18} />
+                         <ChevronRight size={16} />
                        </button>
                      </div>
                   </div>
@@ -1667,7 +2392,7 @@ export default function App() {
                     <span>Akun Verifikator: <strong>{user.placementUnit}</strong></span>
                   </div>
                   <span className="text-emerald-800 bg-emerald-100/80 px-2.5 py-1 rounded-md text-xs font-bold border border-emerald-200/60">
-                    Hanya berwenang memverifikasi pegawai Bagian {user.placementUnit}
+                    Hanya berwenang memverifikasi pegawai {user.placementUnit}
                   </span>
                 </div>
               )}
