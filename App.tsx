@@ -497,9 +497,24 @@ export default function App() {
   const [previewEmployee, setPreviewEmployee] = useState<Employee | null>(null);
   const [isVerifyConfirmOpen, setIsVerifyConfirmOpen] = useState(false);
 
+  // Admin & Verifikator Confirmation Modal States
+  const [isAdminSaveModalOpen, setIsAdminSaveModalOpen] = useState(false);
+  const [isSettingsSaveModalOpen, setIsSettingsSaveModalOpen] = useState(false);
+  const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
+
+  // Excel Import Confirmation State
+  interface PendingImport {
+    fileName: string;
+    totalRows: number;
+    validEmployees: any[];
+  }
+  const [pendingImportData, setPendingImportData] = useState<PendingImport | null>(null);
+  const [isImportConfirmModalOpen, setIsImportConfirmModalOpen] = useState(false);
+
   // Delete Confirmation State
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
+  const [deleteTargetEmployee, setDeleteTargetEmployee] = useState<Employee | null>(null);
 
   // Status Change State (Admin)
   const [isStatusModalOpen, setIsStatusModalOpen] = useState(false);
@@ -657,7 +672,12 @@ export default function App() {
     }
   };
 
-  const handleLogout = () => {
+  const handleLogoutClick = () => {
+    setIsLogoutModalOpen(true);
+  };
+
+  const executeLogout = () => {
+    const userName = user?.name || user?.username || 'Pengguna';
     setUser(null);
     setIsEmployeeEditing(false);
     setEditingEmployee({});
@@ -665,14 +685,32 @@ export default function App() {
     setSelectedEmployeeId(null);
     setUsername('');
     setPassword('');
+    setIsLogoutModalOpen(false);
+    showToast("Berhasil Keluar", `Sesi ${userName} telah diakhiri dengan aman.`, "info");
   };
-  const handleSaveEmployeeAdmin = async (e: React.FormEvent) => {
-    e.preventDefault();
+
+  // Backwards compatibility alias
+  const handleLogout = handleLogoutClick;
+
+  const handleSaveEmployeeAdmin = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!editingEmployee.nip?.trim() || !editingEmployee.name?.trim()) {
+      showToast("Data Belum Lengkap", "NIP dan Nama Lengkap wajib diisi sebelum menyimpan data.", "warning");
+      return;
+    }
+    setIsAdminSaveModalOpen(true);
+  };
+
+  const executeSaveEmployeeAdmin = async () => {
+    if (!editingEmployee.nip?.trim() || !editingEmployee.name?.trim()) return;
+
     setIsSaving(true);
     
     const targetEmployee = {
       ...editingEmployee,
-      id: editingEmployee.id || Math.random().toString(36).substr(2, 9),
+      id: editingEmployee.id || editingEmployee.nip.trim(),
+      nip: editingEmployee.nip.trim(),
+      name: editingEmployee.name.trim(),
       status: editingEmployee.status || 'pending',
     } as Employee;
 
@@ -685,8 +723,9 @@ export default function App() {
       await setDoc(doc(db, 'employees', targetEmployee.id), dbPayload);
       
       await fetchData();
+      setIsAdminSaveModalOpen(false);
       setIsModalOpen(false);
-      showToast("Data Berhasil Disimpan", "Data pegawai berhasil disimpan ke database.", "success");
+      showToast("Data Berhasil Disimpan", `Data pegawai ${targetEmployee.name} (${targetEmployee.nip}) telah berhasil disimpan ke database.`, "success");
     } catch (err: any) {
       showToast("Gagal Menyimpan", err.message, "error");
     } finally {
@@ -836,8 +875,9 @@ export default function App() {
 
        setEmployees(prev => prev.map(emp => emp.id === targetEmployee.id ? targetEmployee : emp));
        setIsStatusModalOpen(false);
+       const statusLabel = newStatus === 'approved' ? 'Siap Cetak' : newStatus === 'verified_by_employee' ? 'Dicek Pegawai' : 'Pending';
+       showToast("Status Diperbarui", `Status ${targetEmployee.name} berhasil diubah menjadi ${statusLabel}.`, "success");
        setStatusTargetEmployee(null);
-       showToast("Status Diperbarui", "Status data pegawai berhasil diperbarui.", "success");
     } catch (err: any) {
       showToast("Gagal Ubah Status", err.message, "error");
     } finally {
@@ -848,9 +888,10 @@ export default function App() {
   const handlePrintContract = (emp: Employee) => {
     const printWindow = window.open('', '_blank');
     if (!printWindow) {
-      alert("Pop-up blocked! Silakan izinkan pop-up untuk situs ini agar bisa mencetak.");
+      showToast("Pop-up Terblokir", "Silakan izinkan pop-up pada peramban Anda untuk mencetak Surat Perjanjian Kerja.", "warning");
       return;
     }
+    showToast("Membuka Dokumen", `Menyiapkan lembar Surat Perjanjian untuk ${emp.name}...`, "info");
 
     printWindow.document.write(`
       <!DOCTYPE html>
@@ -896,9 +937,10 @@ export default function App() {
   const handlePrintSPMT = (emp: Employee) => {
     const printWindow = window.open('', '_blank');
     if (!printWindow) {
-      alert("Pop-up blocked! Silakan izinkan pop-up untuk situs ini agar bisa mencetak.");
+      showToast("Pop-up Terblokir", "Silakan izinkan pop-up pada peramban Anda untuk mencetak Surat Perintah Melaksanakan Tugas (SPMT).", "warning");
       return;
     }
+    showToast("Membuka Dokumen", `Menyiapkan lembar SPMT untuk ${emp.name}...`, "info");
 
     printWindow.document.write(`
       <!DOCTYPE html>
@@ -953,7 +995,11 @@ export default function App() {
 
   const handlePrintVerificationClick = (emp: Employee) => {
     if (!canUserPrintVerification(user, emp)) {
-      alert(`Akses Ditolak: Anda hanya berwenang mencetak lembar verifikasi untuk pegawai dari Bagian ${user?.placementUnit || 'Anda'}.`);
+      showToast(
+        "Akses Ditolak",
+        `Anda hanya berwenang mencetak lembar verifikasi untuk pegawai dari Bagian ${user?.placementUnit || 'Anda'}.`,
+        "warning"
+      );
       return;
     }
     setPrintVerifyTarget(emp);
@@ -970,11 +1016,17 @@ export default function App() {
     e.preventDefault();
     if (!printVerifyTarget) return;
 
-    const printWindow = window.open('', '_blank');
-    if (!printWindow) {
-      alert("Pop-up blocked! Silakan izinkan pop-up untuk situs ini agar bisa mencetak.");
+    if (!verifyFormData.verifierName.trim() || !verifyFormData.verifierNip.trim()) {
+      showToast("Data Belum Lengkap", "Nama dan NIP pemeriksa berkas verifikasi wajib diisi.", "warning");
       return;
     }
+
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+      showToast("Pop-up Terblokir", "Silakan izinkan pop-up pada peramban Anda untuk mencetak Lembar Verifikasi.", "warning");
+      return;
+    }
+    showToast("Membuka Dokumen", `Menyiapkan lembar verifikasi berkas untuk ${printVerifyTarget.name}...`, "info");
 
     printWindow.document.write(`
       <!DOCTYPE html>
@@ -1022,16 +1074,20 @@ export default function App() {
     setIsPrintVerifyModalOpen(false);
   };
 
-  const handleSaveSettings = async (e: React.FormEvent) => {
+  const handleSaveSettingsClick = (e: React.FormEvent) => {
     e.preventDefault();
+    setIsSettingsSaveModalOpen(true);
+  };
+
+  const executeSaveSettings = async () => {
     setIsSaving(true);
-    
     const dbPayload = mapSettingsToDb(tempSettings);
 
     try {
       await setDoc(doc(db, 'settings', 'main'), dbPayload);
       setSettings(tempSettings);
-      showToast("Pengaturan Disimpan", "Pengaturan instansi berhasil disimpan.", "success");
+      setIsSettingsSaveModalOpen(false);
+      showToast("Pengaturan Disimpan", "Pengaturan instansi dan dokumen berhasil disimpan.", "success");
     } catch (err: any) {
       showToast("Gagal Simpan Pengaturan", err.message, "error");
     } finally {
@@ -1039,12 +1095,16 @@ export default function App() {
     }
   };
 
+  // Backwards compatibility alias
+  const handleSaveSettings = handleSaveSettingsClick;
+
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       const reader = new FileReader();
       reader.onloadend = () => {
         setTempSettings(prev => ({ ...prev, logoUrl: reader.result as string }));
+        showToast("Logo Terpilih", "Pratinjau logo telah diperbarui. Klik Simpan Pengaturan untuk menerapkan.", "info");
       };
       reader.readAsDataURL(file);
     }
@@ -1056,6 +1116,7 @@ export default function App() {
       const reader = new FileReader();
       reader.onloadend = () => {
         setTempSettings(prev => ({ ...prev, kopImageUrl: reader.result as string }));
+        showToast("Kop Surat Terpilih", "Pratinjau gambar kop surat diperbarui. Klik Simpan Pengaturan untuk menerapkan.", "info");
       };
       reader.readAsDataURL(file);
     }
@@ -1067,6 +1128,7 @@ export default function App() {
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Template");
     XLSX.writeFile(wb, "Template_Import_Pegawai.xlsx");
+    showToast("Mengunduh Template", "Template Excel pegawai berhasil diunduh.", "info");
   };
 
   const handleImportExcel = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1159,8 +1221,9 @@ export default function App() {
         const data = XLSX.utils.sheet_to_json(ws);
 
         if (data.length === 0) {
-          alert("File kosong!");
+          showToast("File Excel Kosong", "File yang Anda unggah tidak memiliki baris data.", "warning");
           setIsImporting(false);
+          if (importInputRef.current) importInputRef.current.value = "";
           return;
         }
 
@@ -1191,48 +1254,80 @@ export default function App() {
         const validData = employeesToUpsert.filter(e => e.nip && e.name);
         
         if (validData.length === 0) {
-           alert("Tidak ada data valid yang ditemukan.");
+           showToast("Data Tidak Valid", "Tidak ditemukan baris data dengan NIP dan Nama Lengkap yang valid.", "warning");
            setIsImporting(false);
+           if (importInputRef.current) importInputRef.current.value = "";
            return;
         }
 
-        const batch = writeBatch(db);
-        validData.forEach(emp => {
-          const empRef = doc(db, 'employees', emp.id);
-          batch.set(empRef, { ...emp, createdAt: new Date().toISOString() });
+        // Buka modal konfirmasi impor
+        setPendingImportData({
+          fileName: file.name,
+          totalRows: data.length,
+          validEmployees: validData
         });
-
-        await batch.commit();
-        
-        alert(`Berhasil mengimpor ${validData.length} data pegawai!`);
-        if (importInputRef.current) importInputRef.current.value = "";
-        await fetchData();
+        setIsImportConfirmModalOpen(true);
 
       } catch (err: any) {
         console.error(err);
-        alert("Gagal impor: " + err.message);
+        showToast("Gagal Membaca File", "Terjadi kesalahan saat memproses file Excel: " + err.message, "error");
       } finally {
         setIsImporting(false);
+        if (importInputRef.current) importInputRef.current.value = "";
       }
     };
     reader.readAsBinaryString(file);
   };
 
+  const executeImportExcel = async () => {
+    if (!pendingImportData || pendingImportData.validEmployees.length === 0) return;
+
+    setIsSaving(true);
+    try {
+      const batch = writeBatch(db);
+      pendingImportData.validEmployees.forEach(emp => {
+        const empRef = doc(db, 'employees', emp.id);
+        batch.set(empRef, { ...emp, createdAt: new Date().toISOString() });
+      });
+
+      await batch.commit();
+      
+      showToast(
+        "Impor Berhasil!",
+        `Sebanyak ${pendingImportData.validEmployees.length} data pegawai berhasil diimpor ke sistem.`,
+        "success"
+      );
+      setIsImportConfirmModalOpen(false);
+      setPendingImportData(null);
+      await fetchData();
+    } catch (err: any) {
+      console.error(err);
+      showToast("Gagal Impor", "Terjadi kesalahan saat menyimpan data impor: " + err.message, "error");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   const handleDeleteClick = (id: string) => {
+    const target = employees.find(e => e.id === id) || null;
     setDeleteTargetId(id);
+    setDeleteTargetEmployee(target);
     setIsDeleteModalOpen(true);
   };
 
   const executeDeleteEmployee = async () => {
     if (!deleteTargetId) return;
     setIsSaving(true);
+    const targetName = deleteTargetEmployee?.name || 'Pegawai';
     try {
       await deleteDoc(doc(db, 'employees', deleteTargetId));
       setEmployees(employees.filter(e => e.id !== deleteTargetId));
       setIsDeleteModalOpen(false);
       setDeleteTargetId(null);
+      setDeleteTargetEmployee(null);
+      showToast("Data Pegawai Dihapus", `Data pegawai ${targetName} telah berhasil dihapus dari sistem.`, "info");
     } catch (err: any) {
-      alert("Gagal hapus: " + err.message);
+      showToast("Gagal Menghapus Data", err.message, "error");
     } finally {
       setIsSaving(false);
     }
@@ -2915,14 +3010,19 @@ export default function App() {
 
       {/* MODAL UBAH STATUS (ADMIN) */}
       {isStatusModalOpen && statusTargetEmployee && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[70] p-4 transition-opacity">
-           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm flex flex-col">
-              <div className="p-6 border-b flex justify-between items-center bg-gray-50 rounded-t-2xl">
-                 <div>
-                   <h3 className="text-lg font-bold text-gray-800">Ubah Status</h3>
-                   <p className="text-xs text-gray-500">{statusTargetEmployee.name}</p>
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-[70] p-4 transition-opacity">
+           <div className="bg-white rounded-2xl sm:rounded-3xl shadow-2xl w-full max-w-md flex flex-col overflow-hidden border border-slate-100">
+              <div className="p-6 border-b flex justify-between items-center bg-slate-50/80">
+                 <div className="flex items-center gap-3">
+                   <div className="w-10 h-10 rounded-xl bg-orange-50 text-orange-600 flex items-center justify-center border border-orange-200 shrink-0">
+                     <RefreshCw size={18} />
+                   </div>
+                   <div>
+                     <h3 className="text-base font-bold text-slate-800">Ubah Status Pegawai</h3>
+                     <p className="text-xs text-slate-500 font-medium">{statusTargetEmployee.name} ({statusTargetEmployee.nip})</p>
+                   </div>
                  </div>
-                 <button onClick={() => setIsStatusModalOpen(false)} className="text-gray-400 hover:text-gray-600 p-1"><X size={20}/></button>
+                 <button onClick={() => setIsStatusModalOpen(false)} className="text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-200 transition"><X size={18}/></button>
               </div>
               <div className="p-6 space-y-4">
                  <SelectField 
@@ -2930,19 +3030,20 @@ export default function App() {
                    value={newStatus} 
                    onChange={(e:any) => setNewStatus(e.target.value)}
                  >
-                   <option value="pending">Pending</option>
-                   <option value="verified_by_employee">Dicek Pegawai (Menunggu Verifikator)</option>
-                   <option value="approved">Terverifikasi (Siap Cetak)</option>
+                   <option value="pending">Pending (Menunggu Persetujuan Pegawai)</option>
+                   <option value="verified_by_employee">Dicek Pegawai (Menunggu Verifikator Bagian)</option>
+                   <option value="approved">Terverifikasi (Siap Cetak Seluruh Dokumen)</option>
                  </SelectField>
                  
-                 <div className="bg-blue-50 text-blue-800 p-3 rounded-lg text-xs">
-                    <strong>Catatan:</strong> Mengubah status secara manual akan melewati proses verifikasi standar. Pastikan data sudah benar.
+                 <div className="bg-amber-50/80 border border-amber-200 text-amber-900 p-3.5 rounded-xl text-xs flex items-start gap-2">
+                    <AlertTriangle size={16} className="text-amber-600 shrink-0 mt-0.5" />
+                    <span><strong>Perhatian:</strong> Mengubah status secara manual oleh Admin akan langsung memperbarui status pegawai di database.</span>
                  </div>
 
-                 <div className="pt-2 flex gap-3">
-                    <button onClick={() => setIsStatusModalOpen(false)} className="flex-1 py-2.5 bg-gray-100 hover:bg-gray-200 rounded-lg font-bold text-gray-600 transition">Batal</button>
-                    <button onClick={executeStatusChange} disabled={isSaving} className="flex-1 py-2.5 bg-emerald-700 hover:bg-emerald-800 rounded-lg font-bold text-white transition flex justify-center items-center shadow-lg shadow-emerald-900/20">
-                       {isSaving ? <Loader2 className="animate-spin mr-2" size={18}/> : <Save size={18} className="mr-2"/>} Simpan
+                 <div className="pt-2 flex gap-2.5">
+                    <button onClick={() => setIsStatusModalOpen(false)} className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 rounded-xl font-bold text-xs sm:text-sm text-slate-700 transition">Batal</button>
+                    <button onClick={executeStatusChange} disabled={isSaving} className="flex-1 py-3 bg-emerald-700 hover:bg-emerald-800 rounded-xl font-bold text-xs sm:text-sm text-white transition flex justify-center items-center shadow-lg shadow-emerald-900/20">
+                       {isSaving ? <Loader2 className="animate-spin mr-2" size={16}/> : <Save size={16} className="mr-2"/>} Simpan Status
                     </button>
                  </div>
               </div>
@@ -2950,21 +3051,304 @@ export default function App() {
         </div>
       )}
 
-      {/* MODAL KONFIRMASI VERIFIKASI */}
+      {/* MODAL KONFIRMASI VERIFIKASI DATA (VERIFIKATOR & ADMIN) */}
       {isVerifyConfirmOpen && (
-        <div className="fixed inset-0 bg-black/50 z-[60] flex items-center justify-center p-4">
-           <div className="bg-white p-6 rounded-xl shadow-2xl max-w-sm w-full text-center">
-              <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4 text-emerald-600">
-                <Check size={32}/>
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[80] flex items-center justify-center p-4">
+           <div className="bg-white rounded-2xl sm:rounded-3xl shadow-2xl max-w-md w-full p-6 sm:p-7 text-center relative overflow-hidden border border-slate-100">
+              <div className="w-16 h-16 bg-emerald-50 text-emerald-700 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-emerald-200 shadow-inner">
+                <ShieldCheck size={32} className="text-emerald-700"/>
               </div>
-              <h3 className="font-bold text-xl mb-2">Setujui Data Pegawai?</h3>
-              <p className="text-sm text-gray-600 mb-6">
-                Dengan memverifikasi, Anda menyatakan bahwa data pegawai ini sudah benar dan siap untuk dicetak.
+
+              <h3 className="font-extrabold text-lg sm:text-xl text-slate-800 tracking-tight">Setujui & Verifikasi Berkas?</h3>
+              <p className="text-xs sm:text-sm text-slate-500 mt-1 leading-relaxed">
+                Dengan memverifikasi, Anda menyatakan bahwa berkas dan data pegawai ini telah diteliti keabsahannya dan dinyatakan siap untuk dicetak.
               </p>
-              <div className="flex gap-3">
-                <button onClick={() => setIsVerifyConfirmOpen(false)} className="flex-1 py-2.5 bg-gray-100 hover:bg-gray-200 rounded-lg font-bold text-gray-700 transition">Batal</button>
-                <button onClick={handleVerifikatorApprove} disabled={isSaving} className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 rounded-lg font-bold text-white transition flex justify-center items-center">
-                   {isSaving ? <Loader2 className="animate-spin" size={18}/> : 'Ya, Verifikasi'}
+
+              {previewEmployee && (
+                <div className="bg-emerald-50/70 border border-emerald-200 rounded-2xl p-4 my-5 text-left text-xs space-y-1.5 text-emerald-950">
+                  <div className="flex justify-between items-center pb-1.5 border-b border-emerald-200/60">
+                    <span className="text-emerald-700 font-medium">Nama Pegawai</span>
+                    <span className="font-bold text-emerald-950">{previewEmployee.name}</span>
+                  </div>
+                  <div className="flex justify-between items-center pb-1.5 border-b border-emerald-200/60">
+                    <span className="text-emerald-700 font-medium">NIP</span>
+                    <span className="font-mono font-bold text-emerald-900">{previewEmployee.nip}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-emerald-700 font-medium">Unit Penempatan</span>
+                    <span className="font-semibold text-emerald-900">{previewEmployee.placementUnit || previewEmployee.unit || '-'}</span>
+                  </div>
+                </div>
+              )}
+
+              <div className="flex flex-col-reverse sm:flex-row gap-2.5">
+                <button 
+                  type="button"
+                  onClick={() => setIsVerifyConfirmOpen(false)} 
+                  disabled={isSaving}
+                  className="flex-1 py-3 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-xs sm:text-sm transition cursor-pointer"
+                >
+                  Periksa Kembali
+                </button>
+                <button 
+                  type="button"
+                  onClick={handleVerifikatorApprove} 
+                  disabled={isSaving} 
+                  className="flex-1 py-3 px-4 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl font-bold text-xs sm:text-sm transition flex items-center justify-center shadow-lg shadow-emerald-900/20 cursor-pointer disabled:opacity-70"
+                >
+                  {isSaving ? (
+                    <>
+                      <Loader2 className="animate-spin mr-2" size={16}/>
+                      <span>Memverifikasi...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Check size={16} className="mr-2" />
+                      <span>Ya, Setujui & Verifikasi</span>
+                    </>
+                  )}
+                </button>
+              </div>
+           </div>
+        </div>
+      )}
+
+      {/* MODAL KONFIRMASI SIMPAN PEGAWAI (ADMIN) */}
+      {isAdminSaveModalOpen && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[80] flex items-center justify-center p-4">
+           <div className="bg-white rounded-2xl sm:rounded-3xl shadow-2xl max-w-md w-full p-6 sm:p-7 text-center relative overflow-hidden border border-slate-100">
+              <div className="w-16 h-16 bg-emerald-50 text-emerald-700 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-emerald-200 shadow-inner">
+                <Save size={28} className="text-emerald-700"/>
+              </div>
+
+              <h3 className="font-extrabold text-lg sm:text-xl text-slate-800 tracking-tight">
+                {editingEmployee.id ? 'Simpan Perubahan Pegawai?' : 'Simpan Pegawai Baru?'}
+              </h3>
+              <p className="text-xs sm:text-sm text-slate-500 mt-1 leading-relaxed">
+                Pastikan data yang diinput sudah lengkap dan valid sebelum disimpan ke database sistem.
+              </p>
+
+              {/* Detail Ringkasan Data */}
+              <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-4 my-5 text-left text-xs space-y-2 text-slate-700">
+                <div className="flex justify-between items-center pb-2 border-b border-slate-200/60">
+                  <span className="text-slate-400 font-medium">Nama Lengkap</span>
+                  <span className="font-bold text-slate-900 text-right">{editingEmployee.name || '-'}</span>
+                </div>
+                <div className="flex justify-between items-center pb-2 border-b border-slate-200/60">
+                  <span className="text-slate-400 font-medium">NIP / Username</span>
+                  <span className="font-mono font-bold text-slate-800">{editingEmployee.nip || '-'}</span>
+                </div>
+                <div className="flex justify-between items-center pb-2 border-b border-slate-200/60">
+                  <span className="text-slate-400 font-medium">Jabatan</span>
+                  <span className="font-semibold text-slate-800">{editingEmployee.position || '-'}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-400 font-medium">Unit Penempatan</span>
+                  <span className="font-semibold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded text-[11px] border border-emerald-200/60">{editingEmployee.placementUnit || editingEmployee.unit || '-'}</span>
+                </div>
+              </div>
+
+              <div className="flex flex-col-reverse sm:flex-row gap-2.5">
+                <button 
+                  type="button"
+                  onClick={() => setIsAdminSaveModalOpen(false)} 
+                  disabled={isSaving}
+                  className="flex-1 py-3 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-xs sm:text-sm transition cursor-pointer"
+                >
+                  Periksa Kembali
+                </button>
+                <button 
+                  type="button"
+                  onClick={executeSaveEmployeeAdmin} 
+                  disabled={isSaving} 
+                  className="flex-1 py-3 px-4 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl font-bold text-xs sm:text-sm transition flex items-center justify-center shadow-lg shadow-emerald-900/20 cursor-pointer disabled:opacity-70"
+                >
+                  {isSaving ? (
+                    <>
+                      <Loader2 className="animate-spin mr-2" size={16}/>
+                      <span>Menyimpan...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Save size={16} className="mr-2" />
+                      <span>Ya, Simpan Data</span>
+                    </>
+                  )}
+                </button>
+              </div>
+           </div>
+        </div>
+      )}
+
+      {/* MODAL KONFIRMASI SIMPAN PENGATURAN (ADMIN) */}
+      {isSettingsSaveModalOpen && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[80] flex items-center justify-center p-4">
+           <div className="bg-white rounded-2xl sm:rounded-3xl shadow-2xl max-w-md w-full p-6 sm:p-7 text-center relative overflow-hidden border border-slate-100">
+              <div className="w-16 h-16 bg-blue-50 text-blue-700 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-blue-200 shadow-inner">
+                <Settings size={28} className="text-blue-700"/>
+              </div>
+
+              <h3 className="font-extrabold text-lg sm:text-xl text-slate-800 tracking-tight">Terapkan Pengaturan Instansi?</h3>
+              <p className="text-xs sm:text-sm text-slate-500 mt-1 leading-relaxed">
+                Perubahan pada identitas instansi, pejabat penandatangan, dan kop surat akan otomatis diterapkan pada seluruh dokumen cetak (Kontrak, SPMT, dan Lembar Verifikasi).
+              </p>
+
+              <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-4 my-5 text-left text-xs space-y-2 text-slate-700">
+                <div className="flex justify-between items-center pb-2 border-b border-slate-200/60">
+                  <span className="text-slate-400 font-medium">Instansi / OPD</span>
+                  <span className="font-bold text-slate-900 text-right truncate max-w-[200px]">{tempSettings.agencyName || '-'}</span>
+                </div>
+                <div className="flex justify-between items-center pb-2 border-b border-slate-200/60">
+                  <span className="text-slate-400 font-medium">Pejabat (Pihak 1)</span>
+                  <span className="font-semibold text-slate-800 text-right">{tempSettings.officialName || '-'}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-400 font-medium">Nomor SK Referensi</span>
+                  <span className="font-mono font-medium text-slate-800 text-right">{tempSettings.defaultSkNumber || '-'}</span>
+                </div>
+              </div>
+
+              <div className="flex flex-col-reverse sm:flex-row gap-2.5">
+                <button 
+                  type="button"
+                  onClick={() => setIsSettingsSaveModalOpen(false)} 
+                  disabled={isSaving}
+                  className="flex-1 py-3 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-xs sm:text-sm transition cursor-pointer"
+                >
+                  Periksa Lagi
+                </button>
+                <button 
+                  type="button"
+                  onClick={executeSaveSettings} 
+                  disabled={isSaving} 
+                  className="flex-1 py-3 px-4 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl font-bold text-xs sm:text-sm transition flex items-center justify-center shadow-lg shadow-emerald-900/20 cursor-pointer disabled:opacity-70"
+                >
+                  {isSaving ? (
+                    <>
+                      <Loader2 className="animate-spin mr-2" size={16}/>
+                      <span>Menerapkan...</span>
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle size={16} className="mr-2" />
+                      <span>Ya, Terapkan Pengaturan</span>
+                    </>
+                  )}
+                </button>
+              </div>
+           </div>
+        </div>
+      )}
+
+      {/* MODAL KONFIRMASI IMPOR EXCEL (ADMIN) */}
+      {isImportConfirmModalOpen && pendingImportData && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[80] flex items-center justify-center p-4">
+           <div className="bg-white rounded-2xl sm:rounded-3xl shadow-2xl max-w-lg w-full p-6 sm:p-7 text-center relative overflow-hidden border border-slate-100">
+              <div className="w-16 h-16 bg-emerald-50 text-emerald-700 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-emerald-200 shadow-inner">
+                <FileSpreadsheet size={28} className="text-emerald-700"/>
+              </div>
+
+              <h3 className="font-extrabold text-lg sm:text-xl text-slate-800 tracking-tight">Konfirmasi Impor Data Excel</h3>
+              <p className="text-xs sm:text-sm text-slate-500 mt-1 leading-relaxed">
+                Ditemukan <strong className="text-emerald-800 font-bold">{pendingImportData.validEmployees.length} baris data pegawai valid</strong> dari file <span className="font-mono font-semibold text-slate-700 bg-slate-100 px-1.5 py-0.5 rounded text-xs">{pendingImportData.fileName}</span>.
+              </p>
+
+              {/* Preview Beberapa Pegawai */}
+              <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-4 my-5 text-left">
+                <div className="flex items-center justify-between text-xs font-bold text-slate-700 mb-2.5">
+                  <span className="flex items-center gap-1.5">
+                    <Users size={14} className="text-emerald-700" />
+                    Pratinjau Data Siap Impor:
+                  </span>
+                  <span className="text-slate-400 font-normal">Total {pendingImportData.validEmployees.length} pegawai</span>
+                </div>
+                <div className="space-y-1.5 max-h-36 overflow-y-auto pr-1">
+                  {pendingImportData.validEmployees.slice(0, 5).map((emp, idx) => (
+                    <div key={idx} className="flex items-center justify-between text-xs bg-white p-2 rounded-lg border border-slate-100">
+                      <div className="min-w-0 pr-2">
+                        <div className="font-bold text-slate-800 truncate">{emp.name}</div>
+                        <div className="font-mono text-[11px] text-slate-400">{emp.nip}</div>
+                      </div>
+                      <span className="shrink-0 text-[10px] font-semibold bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded border border-emerald-200/60">
+                        {emp.placementUnit || emp.unit || 'Bagian'}
+                      </span>
+                    </div>
+                  ))}
+                  {pendingImportData.validEmployees.length > 5 && (
+                    <div className="text-center text-[11px] text-slate-400 font-medium pt-1">
+                      + {pendingImportData.validEmployees.length - 5} pegawai lainnya
+                    </div>
+                  )}
+                </div>
+                <p className="text-[11px] text-slate-500 mt-3 border-t border-slate-200/60 pt-2.5 leading-relaxed">
+                  💡 <strong className="text-slate-700">Catatan:</strong> Data dengan NIP yang sama akan diperbarui, dan data dengan NIP baru akan otomatis ditambahkan ke sistem.
+                </p>
+              </div>
+
+              <div className="flex flex-col-reverse sm:flex-row gap-2.5">
+                <button 
+                  type="button"
+                  onClick={() => { setIsImportConfirmModalOpen(false); setPendingImportData(null); }} 
+                  disabled={isSaving}
+                  className="flex-1 py-3 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-xs sm:text-sm transition cursor-pointer"
+                >
+                  Batal Impor
+                </button>
+                <button 
+                  type="button"
+                  onClick={executeImportExcel} 
+                  disabled={isSaving} 
+                  className="flex-1 py-3 px-4 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl font-bold text-xs sm:text-sm transition flex items-center justify-center shadow-lg shadow-emerald-900/20 cursor-pointer disabled:opacity-70"
+                >
+                  {isSaving ? (
+                    <>
+                      <Loader2 className="animate-spin mr-2" size={16}/>
+                      <span>Mengimpor Data...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Upload size={16} className="mr-2" />
+                      <span>Ya, Impor {pendingImportData.validEmployees.length} Data</span>
+                    </>
+                  )}
+                </button>
+              </div>
+           </div>
+        </div>
+      )}
+
+      {/* MODAL KONFIRMASI KELUAR (LOGOUT) */}
+      {isLogoutModalOpen && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[90] flex items-center justify-center p-4">
+           <div className="bg-white rounded-2xl sm:rounded-3xl shadow-2xl max-w-sm w-full p-6 sm:p-7 text-center relative overflow-hidden border border-slate-100">
+              <div className="w-16 h-16 bg-rose-50 text-rose-600 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-rose-200 shadow-inner">
+                <LogOut size={28} className="text-rose-600"/>
+              </div>
+
+              <h3 className="font-extrabold text-lg sm:text-xl text-slate-800 tracking-tight">Keluar dari Aplikasi?</h3>
+              <p className="text-xs sm:text-sm text-slate-500 mt-1 leading-relaxed">
+                Anda sedang masuk sebagai <strong className="text-slate-800 font-bold">{user?.name || user?.username}</strong> ({user?.role === 'admin' ? 'Administrator' : user?.role === 'verifikator' ? 'Verifikator' : 'Pegawai'}).
+              </p>
+
+              <div className="my-5 p-3 rounded-xl bg-slate-50 border border-slate-200/80 text-xs text-slate-600">
+                Pastikan Anda telah menyimpan seluruh perubahan data sebelum keluar.
+              </div>
+
+              <div className="flex gap-2.5">
+                <button 
+                  type="button"
+                  onClick={() => setIsLogoutModalOpen(false)} 
+                  className="flex-1 py-3 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-xs sm:text-sm transition cursor-pointer"
+                >
+                  Batal
+                </button>
+                <button 
+                  type="button"
+                  onClick={executeLogout} 
+                  className="flex-1 py-3 px-4 bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-bold text-xs sm:text-sm transition flex items-center justify-center shadow-lg shadow-rose-900/20 cursor-pointer"
+                >
+                  <LogOut size={16} className="mr-2" />
+                  <span>Ya, Keluar</span>
                 </button>
               </div>
            </div>
@@ -3081,21 +3465,62 @@ export default function App() {
         </div>
       )}
 
-      {/* MODAL KONFIRMASI HAPUS */}
+      {/* MODAL KONFIRMASI HAPUS DATA PEGAWAI */}
       {isDeleteModalOpen && (
-        <div className="fixed inset-0 bg-black/50 z-[60] flex items-center justify-center p-4">
-           <div className="bg-white p-6 rounded-xl shadow-2xl max-w-sm w-full text-center">
-              <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4 text-red-600">
-                <Trash2 size={32}/>
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[80] flex items-center justify-center p-4">
+           <div className="bg-white rounded-2xl sm:rounded-3xl shadow-2xl max-w-md w-full p-6 sm:p-7 text-center relative overflow-hidden border border-slate-100">
+              <div className="w-16 h-16 bg-rose-50 text-rose-600 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-rose-200 shadow-inner">
+                <Trash2 size={28} className="text-rose-600"/>
               </div>
-              <h3 className="font-bold text-xl mb-2">Hapus Data Pegawai?</h3>
-              <p className="text-sm text-gray-600 mb-6">
-                Tindakan ini tidak dapat dibatalkan. Data pegawai akan dihapus secara permanen dari sistem.
+
+              <h3 className="font-extrabold text-lg sm:text-xl text-slate-800 tracking-tight">Hapus Data Pegawai?</h3>
+              <p className="text-xs sm:text-sm text-slate-500 mt-1 leading-relaxed">
+                Tindakan ini permanen. Seluruh rekaman data pegawai dan riwayat verifikasinya akan dihapus dari sistem.
               </p>
-              <div className="flex gap-3">
-                <button onClick={() => setIsDeleteModalOpen(false)} className="flex-1 py-2.5 bg-gray-100 hover:bg-gray-200 rounded-lg font-bold text-gray-700 transition">Batal</button>
-                <button onClick={executeDeleteEmployee} disabled={isSaving} className="flex-1 py-2.5 bg-red-600 hover:bg-red-700 rounded-lg font-bold text-white transition flex justify-center items-center">
-                   {isSaving ? <Loader2 className="animate-spin" size={18}/> : 'Ya, Hapus'}
+
+              {deleteTargetEmployee && (
+                <div className="bg-rose-50/70 border border-rose-200 rounded-2xl p-4 my-5 text-left text-xs space-y-1.5 text-rose-950">
+                  <div className="flex justify-between items-center pb-1.5 border-b border-rose-200/60">
+                    <span className="text-rose-700 font-medium">Nama Pegawai</span>
+                    <span className="font-bold text-rose-950">{deleteTargetEmployee.name}</span>
+                  </div>
+                  <div className="flex justify-between items-center pb-1.5 border-b border-rose-200/60">
+                    <span className="text-rose-700 font-medium">NIP</span>
+                    <span className="font-mono font-bold text-rose-900">{deleteTargetEmployee.nip}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-rose-700 font-medium">Bagian / Unit</span>
+                    <span className="font-semibold text-rose-900">{deleteTargetEmployee.placementUnit || deleteTargetEmployee.unit || '-'}</span>
+                  </div>
+                </div>
+              )}
+
+              <div className="flex flex-col-reverse sm:flex-row gap-2.5">
+                <button 
+                  type="button"
+                  onClick={() => { setIsDeleteModalOpen(false); setDeleteTargetEmployee(null); setDeleteTargetId(null); }} 
+                  disabled={isSaving}
+                  className="flex-1 py-3 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-xs sm:text-sm transition cursor-pointer"
+                >
+                  Batal
+                </button>
+                <button 
+                  type="button"
+                  onClick={executeDeleteEmployee} 
+                  disabled={isSaving} 
+                  className="flex-1 py-3 px-4 bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-bold text-xs sm:text-sm transition flex items-center justify-center shadow-lg shadow-rose-900/20 cursor-pointer disabled:opacity-70"
+                >
+                  {isSaving ? (
+                    <>
+                      <Loader2 className="animate-spin mr-2" size={16}/>
+                      <span>Menghapus...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 size={16} className="mr-2" />
+                      <span>Ya, Hapus Permanen</span>
+                    </>
+                  )}
                 </button>
               </div>
            </div>
