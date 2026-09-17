@@ -9,10 +9,36 @@ interface VerificationDocumentProps {
   verifyDate: string;
 }
 
+// Helper to parse date string into ISO YYYY-MM-DD
+const parseToIsoDate = (inputStr: string): string => {
+  if (!inputStr) return '';
+  const str = String(inputStr).trim();
+  const dmy = str.match(/^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})$/);
+  if (dmy) {
+    return `${dmy[3]}-${dmy[2].padStart(2, '0')}-${dmy[1].padStart(2, '0')}`;
+  }
+  const ymd = str.match(/^(\d{4})[\/\-\.](\d{1,2})[\/\-\.](\d{1,2})$/);
+  if (ymd) {
+    return `${ymd[1]}-${ymd[2].padStart(2, '0')}-${ymd[3].padStart(2, '0')}`;
+  }
+  return '';
+};
+
 const formatDateIndonesian = (dateString: string) => {
   if (!dateString) return ".......................";
-  const date = new Date(dateString);
-  return date.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
+  const iso = parseToIsoDate(dateString);
+  if (!iso) {
+    const d = new Date(dateString);
+    if (isNaN(d.getTime())) return String(dateString);
+    return d.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
+  }
+  const [y, m, d] = iso.split('-');
+  const monthNames = [
+    "Januari", "Februari", "Maret", "April", "Mei", "Juni",
+    "Juli", "Agustus", "September", "Oktober", "November", "Desember"
+  ];
+  const mIdx = parseInt(m, 10) - 1;
+  return `${parseInt(d, 10)} ${monthNames[mIdx] || m} ${y}`;
 };
 
 export const VerificationDocument: React.FC<VerificationDocumentProps> = ({ 

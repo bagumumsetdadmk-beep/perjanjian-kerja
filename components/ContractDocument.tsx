@@ -6,28 +6,57 @@ interface ContractDocumentProps {
   settings: AppSettings;
 }
 
+// Helper to parse date string into ISO YYYY-MM-DD
+const parseToIsoDate = (inputStr: string): string => {
+  if (!inputStr) return '';
+  const str = String(inputStr).trim();
+  const dmy = str.match(/^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})$/);
+  if (dmy) {
+    return `${dmy[3]}-${dmy[2].padStart(2, '0')}-${dmy[1].padStart(2, '0')}`;
+  }
+  const ymd = str.match(/^(\d{4})[\/\-\.](\d{1,2})[\/\-\.](\d{1,2})$/);
+  if (ymd) {
+    return `${ymd[1]}-${ymd[2].padStart(2, '0')}-${ymd[3].padStart(2, '0')}`;
+  }
+  return '';
+};
+
 // Helper to format date in Indonesian format (Text Month)
 const formatDateIndonesian = (dateString: string) => {
   if (!dateString) return ".......................";
-  const date = new Date(dateString);
-  return date.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
+  const iso = parseToIsoDate(dateString);
+  if (!iso) {
+    const d = new Date(dateString);
+    if (isNaN(d.getTime())) return String(dateString);
+    return d.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
+  }
+  const [y, m, d] = iso.split('-');
+  const monthNames = [
+    "Januari", "Februari", "Maret", "April", "Mei", "Juni",
+    "Juli", "Agustus", "September", "Oktober", "November", "Desember"
+  ];
+  const mIdx = parseInt(m, 10) - 1;
+  return `${parseInt(d, 10)} ${monthNames[mIdx] || m} ${y}`;
 };
 
 // Helper to format date in numeric format (d-mm-yyyy) e.g., 2-01-2026
 const formatDateNumeric = (dateString: string) => {
   if (!dateString) return "..........";
-  const date = new Date(dateString);
-  const d = date.getDate();
-  const m = (date.getMonth() + 1).toString().padStart(2, '0');
-  const y = date.getFullYear();
-  return `${d}-${m}-${y}`;
+  const iso = parseToIsoDate(dateString);
+  if (iso) {
+    const [y, m, d] = iso.split('-');
+    return `${parseInt(d, 10)}-${m}-${y}`;
+  }
+  return String(dateString);
 };
 
 // Helper to get day name
 const getDayName = (dateString: string) => {
   if (!dateString) return ".......................";
-  const date = new Date(dateString);
-  return date.toLocaleDateString('id-ID', { weekday: 'long' });
+  const iso = parseToIsoDate(dateString);
+  const targetDate = iso ? new Date(iso + 'T12:00:00') : new Date(dateString);
+  if (isNaN(targetDate.getTime())) return ".......................";
+  return targetDate.toLocaleDateString('id-ID', { weekday: 'long' });
 };
 
 // Helper to convert number 1-31 to Text
@@ -42,23 +71,29 @@ const getNumberText = (num: number) => {
 
 // Helper to get year text
 const getYearText = (dateString: string) => {
-    if (!dateString) return ".......................";
-    const year = new Date(dateString).getFullYear();
-    if (year === 2025) return "Dua Ribu Dua Puluh Lima";
-    if (year === 2026) return "Dua Ribu Dua Puluh Enam";
-    if (year === 2027) return "Dua Ribu Dua Puluh Tujuh";
-    return year.toString(); // Fallback
+  if (!dateString) return ".......................";
+  const iso = parseToIsoDate(dateString);
+  const year = iso ? parseInt(iso.split('-')[0], 10) : new Date(dateString).getFullYear();
+  if (year === 2025) return "Dua Ribu Dua Puluh Lima";
+  if (year === 2026) return "Dua Ribu Dua Puluh Enam";
+  if (year === 2027) return "Dua Ribu Dua Puluh Tujuh";
+  if (year === 2028) return "Dua Ribu Dua Puluh Delapan";
+  return year ? String(year) : ".......................";
 };
 
 export const ContractDocument: React.FC<ContractDocumentProps> = ({ employee, settings }) => {
-  const signDate = settings.signatureDate ? new Date(settings.signatureDate) : new Date();
+  const isoSign = parseToIsoDate(settings.signatureDate);
+  const signDate = isoSign ? new Date(isoSign + 'T12:00:00') : (settings.signatureDate ? new Date(settings.signatureDate) : new Date());
   const dayName = getDayName(settings.signatureDate);
-  const formattedDateIndo = formatDateIndonesian(settings.signatureDate);
   const formattedDateNumeric = formatDateNumeric(settings.signatureDate);
   
   // Split date components for the template
   const datePartText = getNumberText(signDate.getDate());
-  const monthPart = signDate.toLocaleDateString('id-ID', { month: 'long' });
+  const monthNames = [
+    "Januari", "Februari", "Maret", "April", "Mei", "Juni",
+    "Juli", "Agustus", "September", "Oktober", "November", "Desember"
+  ];
+  const monthPart = monthNames[signDate.getMonth()] || signDate.toLocaleDateString('id-ID', { month: 'long' });
   const yearText = getYearText(settings.signatureDate);
 
   return (
