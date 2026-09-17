@@ -46,7 +46,6 @@ import {
   ShieldCheck,
   Building2,
   Award,
-  DollarSign,
   MapPin,
   Sparkles,
   Filter,
@@ -183,6 +182,20 @@ const formatNumber = (value: string): string => {
   const raw = value.replace(/\D/g, '');
   return raw.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
 };
+
+// Helper format tampilan gaji yang aman dari "NaN" (mendukung angka, string dengan titik, dsb)
+const formatSalaryDisplay = (val?: string | number): string => {
+  if (val === undefined || val === null || val === '') return '0';
+  const str = String(val).trim();
+  const digits = str.replace(/\D/g, '');
+  if (!digits) return '0';
+  const num = parseInt(digits, 10);
+  if (isNaN(num)) return '0';
+  return num.toLocaleString('id-ID');
+};
+
+// Toggle visibilitas nomor & tanggal SPMT (sementara disembunyikan sesuai permintaan, dapat diaktifkan kembali sewaktu-waktu)
+const SHOW_SPMT_FIELDS = false;
 
 // --- DATE FORMATTING HELPERS FOR DD/MM/YYYY ---
 const formatDisplayDate = (dateStr: string, separator: string = '/'): string => {
@@ -584,7 +597,51 @@ export default function App() {
     setCurrentPage(1);
   }, [view]);
 
+  // Sinkronisasi data form pegawai yang sedang login saat data employees diperbarui / di-fetch
+  useEffect(() => {
+    if (user && user.role === 'employee' && !isEmployeeEditing && employees.length > 0) {
+      const found = employees.find(e => (selectedEmployeeId && e.id === selectedEmployeeId) || e.nip === user.username);
+      if (found) {
+        setEditingEmployee(prev => {
+          if (!prev.id || prev.id === found.id) {
+            return { ...found };
+          }
+          return prev;
+        });
+        setEmployeeFormData({ ...found });
+      }
+    }
+  }, [employees, user, isEmployeeEditing, selectedEmployeeId]);
+
   // --- HANDLERS ---
+  const handleStartEmployeeEdit = () => {
+    const currentClean = (user && employees.find(e => (editingEmployee.id && e.id === editingEmployee.id) || e.nip === user.username)) || employeeFormData || editingEmployee;
+    const cleanObj = { ...currentClean } as Employee;
+    setEmployeeFormData(cleanObj);
+    setEditingEmployee(cleanObj);
+    setIsEmployeeEditing(true);
+  };
+
+  const handleCancelEmployeeEdit = () => {
+    setIsEmployeeEditing(false);
+    // Kembalikan ke data awal yang tersimpan agar form tidak kosong/hilang
+    const original = (user && employees.find(e => (editingEmployee.id && e.id === editingEmployee.id) || e.nip === user.username)) || employeeFormData;
+    if (original) {
+      setEditingEmployee({ ...original });
+    } else if (employeeFormData) {
+      setEditingEmployee({ ...employeeFormData });
+    }
+  };
+
+  const handleLogout = () => {
+    setUser(null);
+    setIsEmployeeEditing(false);
+    setEditingEmployee({});
+    setEmployeeFormData(null);
+    setSelectedEmployeeId(null);
+    setUsername('');
+    setPassword('');
+  };
   const handleSaveEmployeeAdmin = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSaving(true);
@@ -634,6 +691,7 @@ export default function App() {
       
       setEmployees(prev => prev.map(emp => emp.id === targetEmployee.id ? targetEmployee : emp));
       setEditingEmployee(targetEmployee);
+      setEmployeeFormData(targetEmployee);
       setIsEmployeeEditing(false); 
       alert("Data berhasil diperbarui. Silakan klik 'Data Sudah Benar' jika sudah sesuai.");
     } catch (err: any) {
@@ -662,6 +720,7 @@ export default function App() {
       
       setEmployees(prev => prev.map(emp => emp.id === targetEmployee.id ? targetEmployee : emp));
       setEditingEmployee(targetEmployee);
+      setEmployeeFormData(targetEmployee);
       setIsEmployeeEditing(false);
       setIsEmployeeApproveModalOpen(false); // Close modal
       alert("Terima kasih. Data Anda telah disetujui dan akan diperiksa oleh Verifikator.");
@@ -1162,6 +1221,7 @@ export default function App() {
         setUser({ username: found.nip, role: 'employee', name: found.name });
         setSelectedEmployeeId(found.id);
         setEditingEmployee({...found});
+        setEmployeeFormData({...found});
         setIsEmployeeEditing(false);
       } else {
         setLoginError('NIP, Username, atau Password salah');
@@ -1379,7 +1439,7 @@ export default function App() {
 
           </nav>
           <div className="p-4 border-t border-slate-800">
-            <button onClick={() => setUser(null)} className="w-full flex items-center justify-center p-3 rounded-xl text-rose-400 hover:bg-rose-950/30 hover:text-rose-300 transition-colors font-medium text-sm"><LogOut className="mr-2" size={18}/> Keluar Aplikasi</button>
+            <button onClick={handleLogout} className="w-full flex items-center justify-center p-3 rounded-xl text-rose-400 hover:bg-rose-950/30 hover:text-rose-300 transition-colors font-medium text-sm"><LogOut className="mr-2" size={18}/> Keluar Aplikasi</button>
           </div>
         </aside>
       )}
@@ -1414,7 +1474,7 @@ export default function App() {
                 </div>
               </div>
               <button 
-                onClick={() => setUser(null)} 
+                onClick={handleLogout} 
                 className="flex items-center text-xs sm:text-sm font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white border border-slate-700/80 px-3.5 py-2 rounded-xl transition shadow-sm cursor-pointer"
               >
                  <LogOut size={15} className="mr-1.5 text-rose-400"/> Keluar
@@ -1592,12 +1652,12 @@ export default function App() {
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 
                 <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm flex items-center gap-4">
-                  <div className="w-12 h-12 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
-                    <DollarSign size={24} />
+                  <div className="w-12 h-12 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center shrink-0 border border-emerald-200/80 shadow-xs font-black text-base select-none">
+                    <span>Rp</span>
                   </div>
                   <div className="min-w-0">
                     <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Gaji Pokok</p>
-                    <p className="text-base font-extrabold text-slate-900 truncate">Rp {Number(editingEmployee.salaryAmount || 0).toLocaleString('id-ID')}</p>
+                    <p className="text-base font-extrabold text-slate-900 truncate">Rp {formatSalaryDisplay(editingEmployee.salaryAmount)}</p>
                     <p className="text-[10px] text-slate-500 truncate italic">{editingEmployee.salaryText || 'Gaji Bulanan'}</p>
                   </div>
                 </div>
@@ -1678,7 +1738,7 @@ export default function App() {
                       onClick={() => setActiveEmployeeSection('sk')}
                       className={`px-3 py-1 rounded-lg text-xs font-bold transition ${activeEmployeeSection === 'sk' ? 'bg-emerald-700 text-white shadow-sm' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'}`}
                     >
-                      SK & SPMT
+                      {SHOW_SPMT_FIELDS ? 'SK & SPMT' : 'Data SK'}
                     </button>
                   </div>
                 </div>
@@ -1799,7 +1859,7 @@ export default function App() {
                         <InputField 
                           label="Gaji Pokok Bulanan" 
                           disabled 
-                          value={`Rp ${Number(editingEmployee.salaryAmount || 0).toLocaleString('id-ID')}`} 
+                          value={`Rp ${formatSalaryDisplay(editingEmployee.salaryAmount)}`} 
                           className="bg-slate-100 text-slate-900 font-bold" 
                         />
 
@@ -1818,28 +1878,33 @@ export default function App() {
                     <div className="space-y-4">
                       <div className="flex items-center justify-between border-b border-slate-200 pb-2.5">
                         <h4 className="text-xs font-extrabold text-emerald-800 uppercase tracking-wider flex items-center gap-2">
-                          <Stamp size={15} className="text-emerald-700"/> III. Data Legalitas SK & SPMT
+                          <Stamp size={15} className="text-emerald-700"/> III. Data Legalitas SK {SHOW_SPMT_FIELDS ? '& SPMT' : 'Pengangkatan'}
                         </h4>
                         <span className="text-[11px] text-slate-400 font-medium">Dasar Hukum Penugasan</span>
                       </div>
 
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-5 pt-1">
-                        <InputField 
-                          label="Nomor SPMT" 
-                          placeholder="Contoh: 821/..." 
-                          disabled={true} 
-                          value={editingEmployee.spmtNumber || ''} 
-                          onChange={(e:any) => setEditingEmployee({...editingEmployee, spmtNumber: e.target.value})} 
-                          className="bg-slate-100 text-slate-600 font-mono" 
-                        />
-                        
-                        <DateInputField 
-                          label="Tanggal SPMT (Melaksanakan Tugas)" 
-                          disabled={!isEmployeeEditing} 
-                          value={editingEmployee.spmtDate || ''} 
-                          onChange={(e:any) => setEditingEmployee({...editingEmployee, spmtDate: e.target.value})} 
-                          className={!isEmployeeEditing ? "bg-slate-50 text-slate-800 font-medium border-slate-200" : "focus:border-emerald-600"} 
-                        />
+                        {/* Data SPMT (sementara disembunyikan sesuai permintaan, dapat diaktifkan kembali dengan SHOW_SPMT_FIELDS = true) */}
+                        {SHOW_SPMT_FIELDS && (
+                          <>
+                            <InputField 
+                              label="Nomor SPMT" 
+                              placeholder="Contoh: 821/..." 
+                              disabled={true} 
+                              value={editingEmployee.spmtNumber || ''} 
+                              onChange={(e:any) => setEditingEmployee({...editingEmployee, spmtNumber: e.target.value})} 
+                              className="bg-slate-100 text-slate-600 font-mono" 
+                            />
+                            
+                            <DateInputField 
+                              label="Tanggal SPMT (Melaksanakan Tugas)" 
+                              disabled={!isEmployeeEditing} 
+                              value={editingEmployee.spmtDate || ''} 
+                              onChange={(e:any) => setEditingEmployee({...editingEmployee, spmtDate: e.target.value})} 
+                              className={!isEmployeeEditing ? "bg-slate-50 text-slate-800 font-medium border-slate-200" : "focus:border-emerald-600"} 
+                            />
+                          </>
+                        )}
                         
                         <InputField 
                           label="Nomor SK Pengangkatan" 
@@ -1878,7 +1943,7 @@ export default function App() {
                         <>
                           <button 
                             type="button" 
-                            onClick={() => setIsEmployeeEditing(true)} 
+                            onClick={handleStartEmployeeEdit} 
                             className="px-5 py-3 bg-white border border-amber-500 text-amber-800 hover:bg-amber-50 rounded-xl font-bold flex items-center justify-center transition shadow-sm cursor-pointer"
                           >
                             <Edit2 size={16} className="mr-2 text-amber-600"/> Ajukan Perbaikan Data
@@ -1897,7 +1962,7 @@ export default function App() {
                         <>
                           <button 
                             type="button" 
-                            onClick={() => { setIsEmployeeEditing(false); setEditingEmployee({...employeeFormData!}); }} 
+                            onClick={handleCancelEmployeeEdit} 
                             className="px-5 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold transition cursor-pointer"
                           >
                             Batal
@@ -2210,8 +2275,8 @@ export default function App() {
                               <span className="truncate max-w-[200px]">{emp.placementUnit || emp.unit || '-'}</span>
                             </span>
                             {emp.salaryAmount && (
-                              <div className="text-[11px] text-slate-400 mt-1 font-mono">
-                                Rp {Number(emp.salaryAmount).toLocaleString('id-ID')}
+                              <div className="text-[11px] text-slate-500 mt-1 font-mono font-medium">
+                                Rp {formatSalaryDisplay(emp.salaryAmount)}
                               </div>
                             )}
                           </td>
@@ -2662,12 +2727,17 @@ export default function App() {
                    <InputField label="Gaji Terbilang" readOnly value={editingEmployee.salaryText || ''} className="bg-gray-100 text-gray-500 italic" />
                 </div>
 
-                {/* NEW SECTION: DATA SK & SPMT */}
+                {/* SECTION: DATA SK & SPMT */}
                 <div className="md:col-span-2 border-t pt-4">
-                  <h4 className="font-bold text-sm text-emerald-700 uppercase tracking-wide flex items-center"><Briefcase size={16} className="mr-2"/> Data SK & SPMT</h4>
+                  <h4 className="font-bold text-sm text-emerald-700 uppercase tracking-wide flex items-center"><Briefcase size={16} className="mr-2"/> Data SK {SHOW_SPMT_FIELDS ? '& SPMT' : 'Pengangkatan'}</h4>
                 </div>
-                <InputField label="Nomor SPMT" placeholder="Contoh: 821/..." value={editingEmployee.spmtNumber || ''} onChange={(e:any) => setEditingEmployee({...editingEmployee, spmtNumber: e.target.value})} />
-                <InputField type="date" label="Tanggal SPMT (Melaksanakan Tugas)" value={editingEmployee.spmtDate || ''} onChange={(e:any) => setEditingEmployee({...editingEmployee, spmtDate: e.target.value})} />
+                {/* Data SPMT (sementara disembunyikan sesuai permintaan, dapat diaktifkan kembali dengan SHOW_SPMT_FIELDS = true) */}
+                {SHOW_SPMT_FIELDS && (
+                  <>
+                    <InputField label="Nomor SPMT" placeholder="Contoh: 821/..." value={editingEmployee.spmtNumber || ''} onChange={(e:any) => setEditingEmployee({...editingEmployee, spmtNumber: e.target.value})} />
+                    <InputField type="date" label="Tanggal SPMT (Melaksanakan Tugas)" value={editingEmployee.spmtDate || ''} onChange={(e:any) => setEditingEmployee({...editingEmployee, spmtDate: e.target.value})} />
+                  </>
+                )}
                 <InputField label="Nomor SK Pengangkatan" placeholder="Contoh: 810/..." value={editingEmployee.skNumber || ''} onChange={(e:any) => setEditingEmployee({...editingEmployee, skNumber: e.target.value})} />
                 <InputField type="date" label="Tanggal SK" value={editingEmployee.skDate || ''} onChange={(e:any) => setEditingEmployee({...editingEmployee, skDate: e.target.value})} />
                 <div className="md:col-span-2">
