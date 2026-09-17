@@ -194,8 +194,9 @@ const formatSalaryDisplay = (val?: string | number): string => {
   return num.toLocaleString('id-ID');
 };
 
-// Toggle visibilitas nomor & tanggal SPMT (sementara disembunyikan sesuai permintaan, dapat diaktifkan kembali sewaktu-waktu)
+// Toggle visibilitas fitur SPMT (sementara disembunyikan sesuai permintaan, dapat diaktifkan kembali sewaktu-waktu)
 const SHOW_SPMT_FIELDS = false;
+const SHOW_SPMT_PRINT_BUTTON = false;
 
 // --- DATE FORMATTING HELPERS FOR DD/MM/YYYY ---
 const formatDisplayDate = (dateStr: string, separator: string = '/'): string => {
@@ -2852,9 +2853,12 @@ export default function App() {
                         )}
                         
 
-                       <button onClick={() => handlePrintSPMT(previewEmployee)} className="bg-sky-600 hover:bg-sky-700 text-white px-4 py-2.5 rounded-lg font-bold flex items-center shadow-sm transition">
-                          <Briefcase size={18} className="mr-2"/> SPMT
-                       </button>
+                       {/* Tombol Cetak SPMT (sementara disembunyikan sesuai permintaan, dapat diaktifkan kembali dengan SHOW_SPMT_PRINT_BUTTON = true) */}
+                       {SHOW_SPMT_PRINT_BUTTON && (
+                         <button onClick={() => handlePrintSPMT(previewEmployee)} className="bg-sky-600 hover:bg-sky-700 text-white px-4 py-2.5 rounded-lg font-bold flex items-center shadow-sm transition">
+                            <Briefcase size={18} className="mr-2"/> SPMT
+                         </button>
+                       )}
 
                        <button onClick={() => handlePrintContract(previewEmployee)} className="bg-slate-800 hover:bg-slate-900 text-white px-4 py-2.5 rounded-lg font-bold flex items-center shadow-sm transition">
                           <Printer size={18} className="mr-2"/> Kontrak
