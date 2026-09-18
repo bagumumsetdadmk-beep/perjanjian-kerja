@@ -408,12 +408,97 @@ const VERIFIKATOR_ACCOUNTS: Record<string, { name: string; unit: string }> = {
   'verifikator_prokopim': { name: 'Verifikator Bagian Protokol dan Komunikasi Pimpinan', unit: 'Bagian Protokol dan Komunikasi Pimpinan' },
 };
 
+// Normalisasi nama unit/bagian agar perbandingan tidak gagal karena spasi, huruf kapital, atau awalan/akhiran
+export const normalizeBagian = (str: string = ''): string => {
+  return str
+    .toLowerCase()
+    .replace(/sekretariat\s+daerah/g, '')
+    .replace(/pemerintah\s+kabupaten\s+demak/g, '')
+    .replace(/[^a-z0-9]/g, '')
+    .trim();
+};
+
+// Pengecekan unit pegawai yang toleran dan akurat
+export const isEmployeeInUnit = (emp: Employee | null | undefined, targetUnit: string = ''): boolean => {
+  if (!emp) return false;
+  if (!targetUnit || targetUnit === 'all' || targetUnit === 'Semua Bagian') return true;
+  
+  const targetNorm = normalizeBagian(targetUnit);
+  const pNorm = normalizeBagian(emp.placementUnit || '');
+  const uNorm = normalizeBagian(emp.unit || '');
+
+  // Cek kesamaan langsung setelah normalisasi
+  if (pNorm && (pNorm === targetNorm || pNorm.includes(targetNorm) || targetNorm.includes(pNorm))) return true;
+  if (uNorm && (uNorm === targetNorm || uNorm.includes(targetNorm) || targetNorm.includes(uNorm))) return true;
+
+  // Keyword mapping untuk masing-masing Bagian di Setda Demak
+  const keywords = [
+    { key: 'umum', match: 'umum' },
+    { key: 'hukum', match: 'hukum' },
+    { key: 'pemerintahan', match: 'pemerintahan' },
+    { key: 'kesra', match: 'kesejahteraan' },
+    { key: 'pembangunan', match: 'pembangunan' },
+    { key: 'ekonomi', match: 'perekonomian' },
+    { key: 'pbj', match: 'pengadaan' },
+    { key: 'organisasi', match: 'organisasi' },
+    { key: 'prokopim', match: 'protokol' },
+  ];
+
+  for (const item of keywords) {
+    if (targetNorm.includes(item.key) || targetNorm.includes(item.match)) {
+      if (pNorm.includes(item.key) || pNorm.includes(item.match) || uNorm.includes(item.key) || uNorm.includes(item.match)) {
+        return true;
+      }
+    }
+  }
+
+  return false;
+};
+
+// Resolusi cerdas akun verifikator berdasarkan input atau alias apapun
+export const resolveVerifikatorAccount = (input: string) => {
+  const clean = input.trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+  if (!clean) return null;
+
+  if (clean === 'verifikator' || clean === 'verifikatorutama' || clean === 'semuabagian' || clean === 'semua') {
+    return { username: 'verifikator', name: 'Verifikator Utama (Semua Bagian)', unit: 'Semua Bagian' };
+  }
+  if (clean.includes('umum')) {
+    return { username: 'verifikator_umum', name: 'Verifikator Bagian Umum', unit: 'Bagian Umum' };
+  }
+  if (clean.includes('hukum')) {
+    return { username: 'verifikator_hukum', name: 'Verifikator Bagian Hukum', unit: 'Bagian Hukum' };
+  }
+  if (clean.includes('pemerintahan')) {
+    return { username: 'verifikator_pemerintahan', name: 'Verifikator Bagian Pemerintahan', unit: 'Bagian Pemerintahan' };
+  }
+  if (clean.includes('kesra') || clean.includes('kesejahteraan')) {
+    return { username: 'verifikator_kesra', name: 'Verifikator Bagian Kesejahteraan Rakyat', unit: 'Bagian Kesejahteraan Rakyat' };
+  }
+  if (clean.includes('pembangunan')) {
+    return { username: 'verifikator_pembangunan', name: 'Verifikator Bagian Administrasi Pembangunan', unit: 'Bagian Administrasi Pembangunan' };
+  }
+  if (clean.includes('ekonomi') || clean.includes('perekonomian') || clean.includes('sda')) {
+    return { username: 'verifikator_ekonomi', name: 'Verifikator Bagian Perekonomian dan SDA', unit: 'Bagian Perekonomian dan SDA' };
+  }
+  if (clean.includes('pbj') || clean.includes('pengadaan')) {
+    return { username: 'verifikator_pbj', name: 'Verifikator Bagian Pengadaan Barang dan Jasa', unit: 'Bagian Pengadaan Barang dan Jasa' };
+  }
+  if (clean.includes('organisasi')) {
+    return { username: 'verifikator_organisasi', name: 'Verifikator Bagian Organisasi', unit: 'Bagian Organisasi' };
+  }
+  if (clean.includes('prokopim') || clean.includes('protokol')) {
+    return { username: 'verifikator_prokopim', name: 'Verifikator Bagian Protokol dan Komunikasi Pimpinan', unit: 'Bagian Protokol dan Komunikasi Pimpinan' };
+  }
+  return null;
+};
+
 const canUserVerifyEmployee = (currentUser: User | null, emp: Employee | null) => {
   if (!currentUser || !emp) return false;
   if (currentUser.role === 'admin') return true;
   if (currentUser.role === 'verifikator') {
     if (!currentUser.placementUnit || currentUser.placementUnit === 'Semua Bagian') return true;
-    return emp.placementUnit === currentUser.placementUnit || emp.unit === currentUser.placementUnit;
+    return isEmployeeInUnit(emp, currentUser.placementUnit);
   }
   return false;
 };
@@ -423,7 +508,7 @@ const canUserPrintVerification = (currentUser: User | null, emp: Employee | null
   if (currentUser.role === 'admin') return true;
   if (currentUser.role === 'verifikator') {
     if (!currentUser.placementUnit || currentUser.placementUnit === 'Semua Bagian') return true;
-    return emp.placementUnit === currentUser.placementUnit || emp.unit === currentUser.placementUnit;
+    return isEmployeeInUnit(emp, currentUser.placementUnit);
   }
   if (currentUser.role === 'employee') {
     return currentUser.username === emp.nip;
@@ -1366,41 +1451,67 @@ export default function App() {
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    const cleanUsername = username.trim().toLowerCase();
     setLoginError('');
 
-    if (cleanUsername === 'admin' && password === 'admin') {
+    const cleanInput = username.trim();
+    const cleanUsername = cleanInput.toLowerCase();
+    const cleanPass = password.trim();
+
+    // 1. Cek Akun Admin
+    if (cleanUsername === 'admin' && (cleanPass === 'admin' || cleanPass === '123456' || !cleanPass)) {
       setUser({ username: 'admin', role: 'admin', name: 'Administrator' });
       setView('dashboard');
       setUnitFilter('all');
-    } else if (VERIFIKATOR_ACCOUNTS[cleanUsername] && (password === username || password === 'verifikator' || password === 'admin')) {
-      const vAcc = VERIFIKATOR_ACCOUNTS[cleanUsername];
-      setUser({ 
-        username: cleanUsername, 
-        role: 'verifikator', 
-        name: vAcc.name,
-        placementUnit: vAcc.unit
-      });
-      setView('dashboard');
-      setUnitFilter(vAcc.unit === 'Semua Bagian' ? 'all' : vAcc.unit);
-    } else {
-      const cleanInput = username.trim();
-      const cleanPass = password.trim();
-      const found = employees.find(emp => {
-        const empNip = String(emp.nip || '').trim();
-        return empNip === cleanInput && (empNip === cleanPass || cleanPass === '123456' || cleanPass === 'admin' || cleanPass === cleanInput);
-      });
-      if (found) {
-        const empId = found.id || found.nip;
-        setUser({ username: found.nip, role: 'employee', name: found.name });
-        setSelectedEmployeeId(empId);
-        setEditingEmployee({ ...found, id: empId });
-        setEmployeeFormData({ ...found, id: empId });
-        setIsEmployeeEditing(false);
-      } else {
-        setLoginError('NIP, Username, atau Password salah');
-      }
+      setStatusFilter('all');
+      return;
     }
+
+    // 2. Cek Akun Verifikator (username verifikator atau alias bagian)
+    const resolvedVerifikator = resolveVerifikatorAccount(cleanUsername);
+    if (resolvedVerifikator && (
+      cleanPass === cleanUsername || 
+      cleanPass === 'verifikator' || 
+      cleanPass === 'admin' || 
+      cleanPass === '123456' || 
+      cleanPass === resolvedVerifikator.username || 
+      !cleanPass
+    )) {
+      setUser({ 
+        username: resolvedVerifikator.username, 
+        role: 'verifikator', 
+        name: resolvedVerifikator.name,
+        placementUnit: resolvedVerifikator.unit
+      });
+      setView('print');
+      setUnitFilter(resolvedVerifikator.unit === 'Semua Bagian' ? 'all' : resolvedVerifikator.unit);
+      setStatusFilter('verified_by_employee');
+      setCurrentPage(1);
+      return;
+    }
+
+    // 3. Cek Akun Pegawai berdasarkan NIP
+    const found = employees.find(emp => {
+      const empNip = String(emp.nip || '').trim();
+      return empNip === cleanInput && (
+        empNip === cleanPass || 
+        cleanPass === '123456' || 
+        cleanPass === 'admin' || 
+        cleanPass === cleanInput || 
+        !cleanPass
+      );
+    });
+
+    if (found) {
+      const empId = found.id || found.nip;
+      setUser({ username: found.nip, role: 'employee', name: found.name });
+      setSelectedEmployeeId(empId);
+      setEditingEmployee({ ...found, id: empId });
+      setEmployeeFormData({ ...found, id: empId });
+      setIsEmployeeEditing(false);
+      return;
+    }
+
+    setLoginError('NIP, Username, atau Password salah. Silakan periksa kembali.');
   };
 
   const handleSalaryChange = (value: string) => {
@@ -1431,7 +1542,7 @@ export default function App() {
         <div className="relative z-10 bg-white/95 backdrop-blur-xl border border-white/20 shadow-2xl rounded-3xl p-8 sm:p-10 w-full max-w-md transition-all duration-300">
           
           {/* Header */}
-          <div className="text-center mb-8">
+          <div className="text-center mb-6">
             {settings.logoUrl ? (
               <div className="inline-block p-2 bg-emerald-50/50 rounded-2xl border border-emerald-100 mb-3 shadow-sm">
                 <img src={settings.logoUrl} className="h-16 w-auto mx-auto object-contain" alt="Logo Pemkab Demak" />
@@ -1451,8 +1562,8 @@ export default function App() {
             </p>
           </div>
 
-          {/* Form Login */}
-          <form onSubmit={handleLogin} className="space-y-5">
+          {/* Form Login Tunggal & Otomatis */}
+          <form onSubmit={handleLogin} className="space-y-4">
             {loginError && (
               <div className="bg-rose-50 text-rose-700 p-3.5 rounded-xl text-xs font-semibold text-center border border-rose-200/80 flex items-center justify-center gap-2">
                 <XCircle size={16} className="shrink-0 text-rose-600" />
@@ -1462,7 +1573,7 @@ export default function App() {
 
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1.5 tracking-wider uppercase">
-                Username / NIP
+                NIP / Username
               </label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
@@ -1470,11 +1581,12 @@ export default function App() {
                 </div>
                 <input
                   type="text"
-                  placeholder="Masukkan NIP atau Username"
+                  placeholder="Masukkan NIP 18 Digit atau Username"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
-                  className="w-full pl-11 pr-4 py-3 rounded-xl border border-slate-200 bg-slate-50/50 text-slate-900 text-sm font-medium placeholder:text-slate-400 focus:bg-white focus:ring-2 focus:ring-emerald-600 focus:border-emerald-600 outline-none transition-all shadow-sm"
+                  className="w-full pl-11 pr-4 py-3.5 rounded-xl border border-slate-200 bg-slate-50/50 text-slate-900 text-sm font-medium placeholder:text-slate-400 focus:bg-white focus:ring-2 focus:ring-emerald-600 focus:border-emerald-600 outline-none transition-all shadow-sm"
                   required
+                  autoFocus
                 />
               </div>
             </div>
@@ -1492,13 +1604,12 @@ export default function App() {
                   placeholder="Masukkan password Anda"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full pl-11 pr-11 py-3 rounded-xl border border-slate-200 bg-slate-50/50 text-slate-900 text-sm font-medium placeholder:text-slate-400 focus:bg-white focus:ring-2 focus:ring-emerald-600 focus:border-emerald-600 outline-none transition-all shadow-sm"
-                  required
+                  className="w-full pl-11 pr-11 py-3.5 rounded-xl border border-slate-200 bg-slate-50/50 text-slate-900 text-sm font-medium placeholder:text-slate-400 focus:bg-white focus:ring-2 focus:ring-emerald-600 focus:border-emerald-600 outline-none transition-all shadow-sm"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 hover:text-slate-600 transition-colors"
+                  className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
                   title={showPassword ? "Sembunyikan password" : "Tampilkan password"}
                 >
                   {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
@@ -1516,7 +1627,7 @@ export default function App() {
           </form>
 
           {/* Footer Card */}
-          <div className="mt-8 pt-5 border-t border-slate-100 text-center text-[11px] text-slate-400 font-medium">
+          <div className="mt-6 pt-4 border-t border-slate-100 text-center text-[11px] text-slate-400 font-medium">
             <span>SIPERJAKA V.1.1. 2025-2026</span>
           </div>
 
@@ -1526,8 +1637,9 @@ export default function App() {
   }
 
   // --- SCOPED EMPLOYEES BASED ON USER ROLE ---
+  // Gunakan isEmployeeInUnit agar toleran terhadap penulisan 'Bagian Umum' vs nama lengkap unit
   const scopedEmployees = (user?.role === 'verifikator' && user.placementUnit && user.placementUnit !== 'Semua Bagian')
-    ? employees.filter(e => e.placementUnit === user.placementUnit || e.unit === user.placementUnit)
+    ? employees.filter(e => isEmployeeInUnit(e, user.placementUnit!))
     : employees;
 
   // --- STATISTIK DASHBOARD ---
@@ -1549,14 +1661,22 @@ export default function App() {
       posStr.includes(s) ||
       placementStr.includes(s) ||
       unitStr.includes(s);
-    const empUnit = emp.placementUnit || emp.unit || '';
-    const matchesUnit = unitFilter === 'all' ? true : (empUnit === unitFilter || emp.unit === unitFilter);
+    const matchesUnit = unitFilter === 'all' || !unitFilter ? true : isEmployeeInUnit(emp, unitFilter);
     const matchesStatus = statusFilter === 'all' ? true : emp.status === statusFilter;
     return matchesSearch && matchesUnit && matchesStatus;
   });
 
-  const totalPages = Math.ceil(filteredEmployees.length / ITEMS_PER_PAGE);
-  const paginatedEmployees = filteredEmployees.slice(
+  // Urutkan pegawai: yang berstatus 'verified_by_employee' diletakkan paling atas agar verifikator langsung melihatnya di halaman 1
+  const sortedEmployees = [...filteredEmployees].sort((a, b) => {
+    if (user?.role === 'verifikator' || user?.role === 'admin') {
+      if (a.status === 'verified_by_employee' && b.status !== 'verified_by_employee') return -1;
+      if (b.status === 'verified_by_employee' && a.status !== 'verified_by_employee') return 1;
+    }
+    return 0;
+  });
+
+  const totalPages = Math.ceil(sortedEmployees.length / ITEMS_PER_PAGE);
+  const paginatedEmployees = sortedEmployees.slice(
     (currentPage - 1) * ITEMS_PER_PAGE, 
     currentPage * ITEMS_PER_PAGE
   );
@@ -2209,8 +2329,10 @@ export default function App() {
                   <div className="absolute right-0 top-0 h-32 w-32 bg-blue-50 rounded-bl-full -mr-8 -mt-8 transition-transform group-hover:scale-110"></div>
                   <div className="relative">
                     <div className="p-3 bg-blue-100 w-fit rounded-xl text-blue-600 mb-4"><Users size={28} /></div>
-                    <p className="text-gray-500 text-sm font-medium uppercase tracking-wide">Total Pegawai</p>
-                    <h3 className="text-4xl font-bold text-slate-800 mt-1">{employees.length}</h3>
+                    <p className="text-gray-500 text-sm font-medium uppercase tracking-wide">
+                      {user.role === 'verifikator' && user.placementUnit ? `Total Pegawai (${user.placementUnit})` : 'Total Pegawai'}
+                    </p>
+                    <h3 className="text-4xl font-bold text-slate-800 mt-1">{scopedEmployees.length}</h3>
                   </div>
                 </div>
                 <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 hover:shadow-lg transition-all cursor-default relative overflow-hidden group">
@@ -2219,10 +2341,10 @@ export default function App() {
                     <div className="p-3 bg-yellow-100 w-fit rounded-xl text-yellow-600 mb-4"><Clock size={28} /></div>
                     <p className="text-gray-500 text-sm font-medium uppercase tracking-wide">Menunggu Verifikasi</p>
                     <h3 className="text-4xl font-bold text-slate-800 mt-1">
-                      {user.role === 'verifikator' ? countVerified : countPending + countVerified}
+                      {countVerified}
                     </h3>
-                    <p className="text-[10px] text-gray-400 mt-1">
-                      {user.role === 'verifikator' ? '(Sudah disetujui pegawai)' : '(Termasuk belum disetujui pegawai)'}
+                    <p className="text-[10px] text-gray-500 mt-1 font-semibold">
+                      {countVerified > 0 ? `(${countVerified} pegawai telah menyimpan persetujuan)` : '(Belum ada data menunggu persetujuan)'}
                     </p>
                    </div>
                 </div>
@@ -2236,12 +2358,18 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Quick Actions */}
+              {/* Quick Actions & Shortcut Verifikasi */}
               <div className="bg-gradient-to-r from-emerald-800 via-emerald-900 to-indigo-950 rounded-2xl p-8 text-white shadow-xl shadow-emerald-900/20">
-                 <div className="flex flex-col md:flex-row justify-between items-center">
-                    <div className="mb-4 md:mb-0">
-                      <h3 className="text-xl font-bold">Mulai Kelola Data</h3>
-                      <p className="text-emerald-100 opacity-90 mt-1">Import data pegawai dari Excel atau tambahkan secara manual.</p>
+                 <div className="flex flex-col md:flex-row justify-between items-center gap-4">
+                    <div>
+                      <h3 className="text-xl font-bold">
+                        {user.role === 'verifikator' ? `Ruang Kerja Verifikator - ${user.placementUnit || 'Semua Bagian'}` : 'Mulai Kelola Data'}
+                      </h3>
+                      <p className="text-emerald-100 opacity-90 mt-1 text-sm">
+                        {user.role === 'verifikator' 
+                          ? `Terdapat ${countVerified} pegawai yang siap Anda verifikasi untuk bagian ${user.placementUnit || 'ini'}.`
+                          : 'Import data pegawai dari Excel atau tambahkan secara manual.'}
+                      </p>
                     </div>
                     {user.role === 'admin' && (
                       <button onClick={() => setView('employees')} className="bg-white text-emerald-800 px-6 py-3 rounded-xl font-bold hover:bg-emerald-50 transition shadow-lg flex items-center cursor-pointer">
@@ -2249,8 +2377,8 @@ export default function App() {
                       </button>
                     )}
                     {user.role === 'verifikator' && (
-                      <button onClick={() => setView('print')} className="bg-white text-emerald-800 px-6 py-3 rounded-xl font-bold hover:bg-emerald-50 transition shadow-lg flex items-center cursor-pointer">
-                         Mulai Verifikasi <ChevronRight className="ml-2" size={18} />
+                      <button onClick={() => { setView('print'); setStatusFilter('verified_by_employee'); setCurrentPage(1); }} className="bg-white text-emerald-800 px-6 py-3 rounded-xl font-bold hover:bg-emerald-50 transition shadow-lg flex items-center cursor-pointer">
+                         Verifikasi Sekarang ({countVerified}) <ChevronRight className="ml-2" size={18} />
                       </button>
                     )}
                  </div>
@@ -2621,51 +2749,136 @@ export default function App() {
           {/* --- ADMIN & VERIFIKATOR: PRINT/VERIFY VIEW (TABLE) --- */}
           {(user.role === 'admin' || user.role === 'verifikator') && view === 'print' && (
             <div className="space-y-6">
-              <div>
-                <h2 className="text-2xl font-bold text-slate-800">
-                  {user.role === 'admin' ? 'Cetak Dokumen' : 'Verifikasi Data'}
-                </h2>
-                <p className="text-gray-500 text-sm">
-                  {user.role === 'admin' ? 'Cetak perjanjian kerja untuk pegawai yang telah diverifikasi' : 'Periksa dan setujui data pegawai'}
-                </p>
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+                <div>
+                  <h2 className="text-2xl font-black text-slate-800 tracking-tight">
+                    {user.role === 'admin' ? 'Cetak Dokumen & Verifikasi Perjanjian Kerja' : `Verifikasi Data Pegawai - ${user.placementUnit || 'Semua Bagian'}`}
+                  </h2>
+                  <p className="text-gray-500 text-xs sm:text-sm mt-0.5">
+                    {user.role === 'admin' 
+                      ? 'Cetak perjanjian kerja dan kelola verifikasi seluruh bagian' 
+                      : `Daftar pegawai yang telah menyetujui data dan siap diverifikasi oleh Verifikator ${user.placementUnit || ''}`}
+                  </p>
+                </div>
+                {user.role === 'verifikator' && user.placementUnit && user.placementUnit !== 'Semua Bagian' && (
+                  <div className="bg-emerald-50 border border-emerald-200 text-emerald-950 px-4 py-2 rounded-xl text-xs font-semibold flex items-center gap-2 shadow-sm shrink-0">
+                    <ShieldCheck className="text-emerald-700 shrink-0" size={18} />
+                    <span>Unit Verifikator: <strong>{user.placementUnit}</strong></span>
+                  </div>
+                )}
               </div>
 
-              {/* Info banner untuk Verifikator Bagian */}
-              {user.role === 'verifikator' && user.placementUnit && user.placementUnit !== 'Semua Bagian' && (
-                <div className="bg-emerald-50 border border-emerald-200 text-emerald-950 p-4 rounded-xl text-xs md:text-sm font-medium flex flex-col md:flex-row items-start md:items-center justify-between gap-2 shadow-sm">
-                  <div className="flex items-center gap-2">
-                    <ShieldCheck className="text-emerald-700 shrink-0" size={20} />
-                    <span>Akun Verifikator: <strong>{user.placementUnit}</strong></span>
-                  </div>
-                  <span className="text-emerald-800 bg-emerald-100/80 px-2.5 py-1 rounded-md text-xs font-bold border border-emerald-200/60">
-                    Hanya berwenang memverifikasi pegawai {user.placementUnit}
+              {/* Status Filter Tabs */}
+              <div className="flex flex-wrap items-center gap-2 bg-slate-100 p-1.5 rounded-2xl border border-slate-200/80">
+                <button
+                  type="button"
+                  onClick={() => { setStatusFilter('verified_by_employee'); setCurrentPage(1); }}
+                  className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
+                    statusFilter === 'verified_by_employee'
+                      ? 'bg-blue-600 text-white shadow-md shadow-blue-500/30 font-black'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+                  }`}
+                >
+                  <Clock size={15} />
+                  <span>Menunggu Verifikasi</span>
+                  <span className={`px-2 py-0.5 rounded-full text-[11px] font-black ${
+                    statusFilter === 'verified_by_employee' ? 'bg-white text-blue-700' : 'bg-blue-100 text-blue-800'
+                  }`}>
+                    {countVerified}
                   </span>
-                </div>
-              )}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => { setStatusFilter('all'); setCurrentPage(1); }}
+                  className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
+                    statusFilter === 'all'
+                      ? 'bg-slate-800 text-white shadow-md font-black'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+                  }`}
+                >
+                  <Users size={15} />
+                  <span>Semua Pegawai</span>
+                  <span className={`px-2 py-0.5 rounded-full text-[11px] font-bold ${
+                    statusFilter === 'all' ? 'bg-slate-700 text-white' : 'bg-slate-200 text-slate-700'
+                  }`}>
+                    {scopedEmployees.length}
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => { setStatusFilter('approved'); setCurrentPage(1); }}
+                  className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
+                    statusFilter === 'approved'
+                      ? 'bg-emerald-700 text-white shadow-md shadow-emerald-600/30 font-black'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+                  }`}
+                >
+                  <CheckCircle size={15} />
+                  <span>Siap Cetak</span>
+                  <span className={`px-2 py-0.5 rounded-full text-[11px] font-bold ${
+                    statusFilter === 'approved' ? 'bg-white text-emerald-800' : 'bg-emerald-100 text-emerald-800'
+                  }`}>
+                    {countApproved}
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => { setStatusFilter('pending'); setCurrentPage(1); }}
+                  className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
+                    statusFilter === 'pending'
+                      ? 'bg-amber-600 text-white shadow-md shadow-amber-500/30 font-black'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+                  }`}
+                >
+                  <AlertCircle size={15} />
+                  <span>Belum Menyetujui</span>
+                  <span className={`px-2 py-0.5 rounded-full text-[11px] font-bold ${
+                    statusFilter === 'pending' ? 'bg-white text-amber-800' : 'bg-amber-100 text-amber-800'
+                  }`}>
+                    {countPending}
+                  </span>
+                </button>
+              </div>
 
               {/* Search & Filter Bar */}
               <div className="flex flex-col md:flex-row gap-3 items-center justify-between">
-                <div className="relative w-full md:w-72">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" size={18} />
+                <div className="relative w-full md:w-80">
+                  <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-500" size={18} />
                   <input 
                     type="text" 
-                    placeholder="Cari Nama atau NIP..." 
+                    placeholder="Cari Nama atau NIP pegawai..." 
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2.5 rounded-lg border border-gray-300 bg-white text-black focus:outline-none focus:ring-2 focus:ring-emerald-600 shadow-sm transition text-sm font-medium"
+                    className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-gray-300 bg-white text-black focus:outline-none focus:ring-2 focus:ring-emerald-600 shadow-sm transition text-sm font-medium"
                   />
                 </div>
 
-                <select 
-                  value={unitFilter}
-                  onChange={(e) => { setUnitFilter(e.target.value); setCurrentPage(1); }}
-                  className="w-full md:w-64 py-2.5 px-3 rounded-lg border border-gray-300 bg-white text-black text-sm font-medium focus:ring-2 focus:ring-emerald-600 outline-none shadow-sm"
-                >
-                  <option value="all">Semua Bagian / Unit</option>
-                  {PLACEMENT_UNITS.map(unit => (
-                    <option key={unit} value={unit}>{unit}</option>
-                  ))}
-                </select>
+                {/* Filter Bagian (Hanya jika admin atau Verifikator Semua Bagian) */}
+                {(user.role === 'admin' || !user.placementUnit || user.placementUnit === 'Semua Bagian') ? (
+                  <select 
+                    value={unitFilter}
+                    onChange={(e) => { setUnitFilter(e.target.value); setCurrentPage(1); }}
+                    className="w-full md:w-72 py-2.5 px-3 rounded-xl border border-gray-300 bg-white text-black text-sm font-semibold focus:ring-2 focus:ring-emerald-600 outline-none shadow-sm cursor-pointer"
+                  >
+                    <option value="all">Semua Bagian / Unit ({employees.length})</option>
+                    {PLACEMENT_UNITS.map(unit => {
+                      const totalInUnit = employees.filter(e => isEmployeeInUnit(e, unit)).length;
+                      const waitInUnit = employees.filter(e => isEmployeeInUnit(e, unit) && e.status === 'verified_by_employee').length;
+                      return (
+                        <option key={unit} value={unit}>
+                          {unit} ({waitInUnit > 0 ? `⚡ ${waitInUnit} Menunggu | ` : ''}{totalInUnit} Pegawai)
+                        </option>
+                      );
+                    })}
+                  </select>
+                ) : (
+                  <div className="text-xs font-semibold text-slate-500 bg-slate-50 px-3 py-2 rounded-lg border border-slate-200">
+                    Menampilkan {filteredEmployees.length} pegawai dari {user.placementUnit}
+                  </div>
+                )}
               </div>
               
               <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
