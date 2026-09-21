@@ -75,7 +75,7 @@ export const VerificationDocument: React.FC<VerificationDocumentProps> = ({
 
       <div className="text-center mb-6">
         <h1 className="font-bold text-lg underline">LEMBAR VERIFIKASI DATA KEPEGAWAIAN</h1>
-        <p className="text-sm mt-1 font-semibold">PPPK PARUH WAKTU TAHUN 2025</p>
+        <p className="text-sm mt-1 font-semibold">PPPK PARUH WAKTU TAHUN 2026</p>
       </div>
 
       <div className="mb-5">
