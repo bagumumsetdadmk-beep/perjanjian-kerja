@@ -101,7 +101,7 @@ export const ContractDocument: React.FC<ContractDocumentProps> = ({ employee, se
       {/* HEADER */}
       <div className="text-center font-bold mb-6 text-black">
         <h1 className="underline">PERPANJANGAN PERJANJIAN KERJA</h1>
-        <p>NOMOR : 800.1.13.2/ {employee.agreementNumber || '............'} / TAHUN 2026</p>
+        <p>NOMOR : 800.1.13.2/ {employee.agreementNumber || '............'} TAHUN 2026</p>
       </div>
 
       {/* OPENING */}
@@ -228,10 +228,16 @@ export const ContractDocument: React.FC<ContractDocumentProps> = ({ employee, se
           <p>Pasal 2</p>
           <p>TUGAS PEKERJAAN</p>
         </div>
-        <ol className="list-decimal ml-8 mb-4 space-y-2 text-black pl-4">
-          <li>PIHAK KESATU membuat dan menetapkan tugas pekerjaan yang harus dilaksanakan oleh PIHAK KEDUA.</li>
-          <li>PIHAK KEDUA wajib melaksanakan tugas pekerjaan yang diberikan PIHAK KESATU dengan sebaik-baiknya dan rasa tanggung jawab.</li>
-        </ol>
+        <div className="space-y-2 mb-4 text-black">
+          <div className="flex items-start">
+            <span className="w-8 shrink-0">(1)</span>
+            <p className="flex-1 text-justify">PIHAK KESATU membuat dan menetapkan tugas pekerjaan yang harus dilaksanakan oleh PIHAK KEDUA.</p>
+          </div>
+          <div className="flex items-start">
+            <span className="w-8 shrink-0">(2)</span>
+            <p className="flex-1 text-justify">PIHAK KEDUA wajib melaksanakan tugas pekerjaan yang diberikan PIHAK KESATU dengan sebaik-baiknya dan rasa tanggung jawab.</p>
+          </div>
+        </div>
       </div>
 
       {/* PASAL 3 */}
@@ -240,11 +246,20 @@ export const ContractDocument: React.FC<ContractDocumentProps> = ({ employee, se
           <p>Pasal 3</p>
           <p>TARGET KINERJA</p>
         </div>
-        <ol className="list-decimal ml-8 mb-4 space-y-2 text-black pl-4">
-          <li>PIHAK KESATU membuat dan menetapkan target kinerja bagi PIHAK KEDUA selama masa Perjanjian Kerja.</li>
-          <li>PIHAK KEDUA wajib memenuhi target kinerja yang telah ditetapkan oleh PIHAK KESATU.</li>
-          <li>PIHAK KESATU dan PIHAK KEDUA menandatangani target perjanjian kinerja sesuai dengan ketentuan peraturan perundang-undangan.</li>
-        </ol>
+        <div className="space-y-2 mb-4 text-black">
+          <div className="flex items-start">
+            <span className="w-8 shrink-0">(1)</span>
+            <p className="flex-1 text-justify">PIHAK KESATU membuat dan menetapkan target kinerja bagi PIHAK KEDUA selama masa Perjanjian Kerja.</p>
+          </div>
+          <div className="flex items-start">
+            <span className="w-8 shrink-0">(2)</span>
+            <p className="flex-1 text-justify">PIHAK KEDUA wajib memenuhi target kinerja yang telah ditetapkan oleh PIHAK KESATU.</p>
+          </div>
+          <div className="flex items-start">
+            <span className="w-8 shrink-0">(3)</span>
+            <p className="flex-1 text-justify">PIHAK KESATU dan PIHAK KEDUA menandatangani target perjanjian kinerja sesuai dengan ketentuan peraturan perundang-undangan.</p>
+          </div>
+        </div>
       </div>
 
       {/* PASAL 4 */}
@@ -264,84 +279,135 @@ export const ContractDocument: React.FC<ContractDocumentProps> = ({ employee, se
           <p>Pasal 5</p>
           <p>DISIPLIN</p>
         </div>
-        <ol className="list-decimal ml-8 mb-4 space-y-2 text-black pl-4">
-          <li>PIHAK KEDUA wajib mematuhi semua kewajiban dan larangan;</li>
-          <li>
-            Kewajiban bagi PIHAK KEDUA sebagaimana dimaksud pada ayat (1) meliputi :
-            <ol className="list-[lower-alpha] ml-6 mt-1 space-y-1">
-               <li>setia dan taat pada Pancasila, Undang-Undang Dasar Negara Republik Indonesia Tahun 1945, Negara Kesatuan Republik Indonesia, dan pemerintah yang sah;</li>
-               <li>menjaga persatuan dan kesatuan bangsa;</li>
-               <li>melaksanakan kebijakan yang dirumuskan pejabat pemerintah yang berwenang;</li>
-               <li>menaati ketentuan peraturan perundang-undangan;</li>
-               <li>melaksanakan tugas kedinasan dengan penuh pengabdian, kejujuran, kesadaran, dan tanggung jawab;</li>
-               <li>menunjukkan integritas dan keteladanan dalam sikap, perilaku, ucapan, dan tindakan kepada setiap orang, baik di dalam maupun di luar kedinasan;</li>
-               <li>menyimpan rahasia jabatan dan hanya dapat mengemukakan rahasia jabatan sesuai dengan ketentuan peraturan perundang-undangan; dan</li>
-               <li>bersedia ditempatkan di seluruh wilayah Negara Kesatuan Republik Indonesia.</li>
-            </ol>
-          </li>
-          <li>
-            Selain memenuhi kewajiban sebagaimana dimaksud pada ayat (2) PIHAK KEDUA wajib:
-            <ol className="list-[lower-alpha] ml-6 mt-1 space-y-1">
-              <li>mengutamakan kepentingan Negara daripada kepentingan sendiri, seseorang dan/atau golongan;</li>
-              <li>mencapai target kinerja pegawai yang ditetapkan;</li>
-              <li>menggunakan dan memelihara barang-barang milik Negara dengan sebaik-baiknya;</li>
-              <li>memberikan pelayanan yang sebaik-baiknya kepada masyarakat; dan</li>
-              <li>sanggup berkoordinasi dan bekerjasama dengan sesama ASN dan Non ASN dalam rangka mewujudkan tujuan organisasi.</li>
-            </ol>
-          </li>
-          <li>
-             Larangan bagi PIHAK KEDUA sebagaimana dimaksud pada ayat (1) meliputi :
-             <ol className="list-[lower-alpha] ml-6 mt-1 space-y-1">
-               <li>menyalahgunakan wewenang;</li>
-               <li>menjadi perantara untuk mendapatkan keuntungan pribadi dan/atau orang lain dengan menggunakan kewenangan orang lain;</li>
-               <li>tanpa izin Pemerintah menjadi pegawai atau bekerja untuk negara lain dan/atau lembaga atau organisasi internasional;</li>
-               <li>bekerja pada perusahaan asing, konsultan asing, atau lembaga swadaya masyarakat asing;</li>
-               <li>memiliki, menjual, membeli, menggadaikan, menyewakan, atau meminjamkan barang barang baik bergerak atau tidak bergerak, dokumen atau surat berharga milik negara secara tidak sah;</li>
-               <li>melakukan kegiatan bersama dengan atasan, teman sejawat atau orang lain di dalam maupun di luar lingkungan kerjanya dengan tujuan untuk keuntungan pribadi, golongan, atau pihak lain yang secara langsung atau tidak langsung merugikan negara;</li>
-               <li>memberikan atau menyanggupi akan memberi sesuatu kepada siapapun baik secara langsung atau tidak langsung dan dengan dalih apapun untuk diangkat dalam jabatan;</li>
-               <li>menerima hadiah atau suatu pemberian apa saja dari siapapun juga yang berhubungan dengan jabatan dan/atau pekerjaan;</li>
-               <li>melakukan suatu tindakan atau tidak melakukan suatu tindakan yang dapat menghalangi atau mempersulit salah satu pihak yang dilayani sehingga mengakibatkan kerugian bagi yang dilayani;</li>
-               <li>menghalangi berjalannya tugas kedinasan;</li>
-               <li>
-                 memberikan dukungan kepada calon Presiden/Wakil Presiden, Dewan Perwakilan Rakyat, Dewan Perwakilan Daerah, atau Dewan Perwakilan Rakyat Daerah dengan cara :
-                 <ol className="list-decimal ml-6 mt-1">
-                   <li>ikut serta sebagai pelaksana kampanye;</li>
-                   <li>menjadi peserta kampanye dengan menggunakan atribut partai atau atribut Aparatur Sipil Negara;</li>
-                   <li>sebagai peserta kampanye dengan mengerahkan Apatur Sipil Negara lain; dan/atau</li>
-                   <li>sebagai peserta kampanye dengan menggunakan fasilitas Negara.</li>
-                 </ol>
-               </li>
-               <li>
-                  memberikan dukungan kepada calon Presiden/Wakil Presiden dengan cara :
-                  <ol className="list-decimal ml-6 mt-1">
-                    <li>membuat keputusan dan/atau tindakan yang menguntungkan atau merugikan salah satu pasangan calon selama masa kampanye; dan/atau</li>
-                    <li>mengadakan kegiatan yang mengarah kepada keberpihakan terhadap pasangan calon yang menjadi peserta pemilu sebelum, selama, dan/atau sesudah masa kampanye meliputi pertemuan, ajakan, himbauan, seruan, atau pemberian barang kepada Aparatur Sipil Negara dalam lingkungan unit kerjanya, anggota keluarga, dan masyarakat.</li>
-                  </ol>
-               </li>
-               <li>memberikan dukungan kepada calon anggota Dewan Perwakilan Daerah atau calon Kepala Daerah/Wakil Kepala Daerah dengan cara memberikan surat dukungan disertai foto kopi Kartu Tanda Penduduk atau Surat Keterangan Tanda Penduduk sesuai dengan ketentuan peraturan perundang-undangan; dan</li>
-               <li>
-                  memberikan dukungan kepada calon Kepala Daerah/Wakil Kepala Daerah, dengan cara :
-                  <ol className="list-decimal ml-6 mt-1">
-                    <li>terlibat dalam kegiatan kampanye untuk mendukung calon Kepala Daerah/Wakil Kepala Daerah;</li>
-                    <li>menggunakan fasilitas yang terkait dengan jabatan dalam kegiatan kampanye;</li>
-                    <li>membuat keputusan dan/atau tindakan yang menguntungkan atau merugikan salah satu pasangan calon selama masa kampanye; dan/atau</li>
-                    <li>mengadakan kegiatan yang mengarah kepada keberpihakan terhadap pasangan calon yang menjadi peserta pemilu sebelum, selama, dan/atau sesudah masa kampanye meliputi pertemuan, ajakan, himbauan, seruan, atau pemberian barang kepada Aparatur Sipil Negara dalam lingkungan kerjanya, anggota keluarga, dan masyarakat.</li>
-                  </ol>
-               </li>
-             </ol>
-          </li>
-          <li>
-            Selain larangan sebagaimana dimaksud pada ayat (4), PIHAK KEDUA dilarang :
-            <ol className="list-[lower-alpha] ml-6 mt-1 space-y-1">
-              <li>merusak dengan sengaja dan/atau menghilangkan aset milik Pemerintah Kabupaten Demak;</li>
-              <li>mencemarkan nama baik pimpinan atau teman kerja di instansi kerja masing-masing;</li>
-              <li>membocorkan rahasia jabatan dan dokumen Negara; dan</li>
-              <li>melakukan perbuatan tercela yang bertentangan dengan agama dan etika yang berlaku di masyarakat.</li>
-            </ol>
-          </li>
-          <li>PIHAK KEDUA yang tidak mematuhi kewajiban dan/atau melanggar larangan sebagaimana dimaksud pada ayat (2), ayat (3), ayat (4), dan ayat (5) diberikan sanksi hukuman disiplin sesuai dengan ketentuan peraturan perundang-undangan yang berlaku.</li>
-          <li>Tata cara penjatuhan dan jenis hukuman disiplin sebagaimana dimaksud pada ayat (6) mengikuti ketentuan yang berlaku sebagaimana diatur dalam Peraturan Pemerintah yang mengatur mengenai disiplin Pegawai Negeri Sipil.</li>
-        </ol>
+        <div className="space-y-2 mb-4 text-black">
+          <div className="flex items-start">
+            <span className="w-8 shrink-0">(1)</span>
+            <p className="flex-1 text-justify">PIHAK KEDUA wajib mematuhi semua kewajiban dan larangan;</p>
+          </div>
+          <div className="flex items-start">
+            <span className="w-8 shrink-0">(2)</span>
+            <div className="flex-1 text-justify">
+              <p>Kewajiban bagi PIHAK KEDUA sebagaimana dimaksud pada ayat (1) meliputi :</p>
+              <ol className="list-[lower-alpha] ml-6 mt-1 space-y-1">
+                <li>setia dan taat pada Pancasila, Undang-Undang Dasar Negara Republik Indonesia Tahun 1945, Negara Kesatuan Republik Indonesia, dan pemerintah yang sah;</li>
+                <li>menjaga persatuan dan kesatuan bangsa;</li>
+                <li>melaksanakan kebijakan yang dirumuskan pejabat pemerintah yang berwenang;</li>
+                <li>menaati ketentuan peraturan perundang-undangan;</li>
+                <li>melaksanakan tugas kedinasan dengan penuh pengabdian, kejujuran, kesadaran, dan tanggung jawab;</li>
+                <li>menunjukkan integritas dan keteladanan dalam sikap, perilaku, ucapan, dan tindakan kepada setiap orang, baik di dalam maupun di luar kedinasan;</li>
+                <li>menyimpan rahasia jabatan dan hanya dapat mengemukakan rahasia jabatan sesuai dengan ketentuan peraturan perundang-undangan; dan</li>
+                <li>bersedia ditempatkan di seluruh wilayah Negara Kesatuan Republik Indonesia.</li>
+              </ol>
+            </div>
+          </div>
+          <div className="flex items-start">
+            <span className="w-8 shrink-0">(3)</span>
+            <div className="flex-1 text-justify">
+              <p>Selain memenuhi kewajiban sebagaimana dimaksud pada ayat (2) PIHAK KEDUA wajib:</p>
+              <ol className="list-[lower-alpha] ml-6 mt-1 space-y-1">
+                <li>mengutamakan kepentingan Negara daripada kepentingan sendiri, seseorang dan/atau golongan;</li>
+                <li>mencapai target kinerja pegawai yang ditetapkan;</li>
+                <li>menggunakan dan memelihara barang-barang milik Negara dengan sebaik-baiknya;</li>
+                <li>memberikan pelayanan yang sebaik-baiknya kepada masyarakat; dan</li>
+                <li>sanggup berkoordinasi dan bekerjasama dengan sesama ASN dan Non ASN dalam rangka mewujudkan tujuan organisasi.</li>
+              </ol>
+            </div>
+          </div>
+          <div className="flex items-start">
+            <span className="w-8 shrink-0">(4)</span>
+            <div className="flex-1 text-justify">
+              <p>Larangan bagi PIHAK KEDUA sebagaimana dimaksud pada ayat (1) meliputi :</p>
+              <ol className="list-[lower-alpha] ml-6 mt-1 space-y-1">
+                <li>menyalahgunakan wewenang;</li>
+                <li>menjadi perantara untuk mendapatkan keuntungan pribadi dan/atau orang lain dengan menggunakan kewenangan orang lain;</li>
+                <li>tanpa izin Pemerintah menjadi pegawai atau bekerja untuk negara lain dan/atau lembaga atau organisasi internasional;</li>
+                <li>bekerja pada perusahaan asing, konsultan asing, atau lembaga swadaya masyarakat asing;</li>
+                <li>memiliki, menjual, membeli, menggadaikan, menyewakan, atau meminjamkan barang barang baik bergerak atau tidak bergerak, dokumen atau surat berharga milik negara secara tidak sah;</li>
+                <li>melakukan kegiatan bersama dengan atasan, teman sejawat atau orang lain di dalam maupun di luar lingkungan kerjanya dengan tujuan untuk keuntungan pribadi, golongan, atau pihak lain yang secara langsung atau tidak langsung merugikan negara;</li>
+                <li>memberikan atau menyanggupi akan memberi sesuatu kepada siapapun baik secara langsung atau tidak langsung dan dengan dalih apapun untuk diangkat dalam jabatan;</li>
+                <li>menerima hadiah atau suatu pemberian apa saja dari siapapun juga yang berhubungan dengan jabatan dan/atau pekerjaan;</li>
+                <li>melakukan suatu tindakan atau tidak melakukan suatu tindakan yang dapat menghalangi atau mempersulit salah satu pihak yang dilayani sehingga mengakibatkan kerugian bagi yang dilayani;</li>
+                <li>menghalangi berjalannya tugas kedinasan;</li>
+                <li>
+                  memberikan dukungan kepada calon Presiden/Wakil Presiden, Dewan Perwakilan Rakyat, Dewan Perwakilan Daerah, atau Dewan Perwakilan Rakyat Daerah dengan cara :
+                  <div className="ml-6 mt-1 space-y-1">
+                    <div className="flex items-start">
+                      <span className="w-5 shrink-0">1)</span>
+                      <p className="flex-1 text-justify">ikut serta sebagai pelaksana kampanye;</p>
+                    </div>
+                    <div className="flex items-start">
+                      <span className="w-5 shrink-0">2)</span>
+                      <p className="flex-1 text-justify">menjadi peserta kampanye dengan menggunakan atribut partai atau atribut Aparatur Sipil Negara;</p>
+                    </div>
+                    <div className="flex items-start">
+                      <span className="w-5 shrink-0">3)</span>
+                      <p className="flex-1 text-justify">sebagai peserta kampanye dengan mengerahkan Apatur Sipil Negara lain; dan/atau</p>
+                    </div>
+                    <div className="flex items-start">
+                      <span className="w-5 shrink-0">4)</span>
+                      <p className="flex-1 text-justify">sebagai peserta kampanye dengan menggunakan fasilitas Negara.</p>
+                    </div>
+                  </div>
+                </li>
+                <li>
+                   memberikan dukungan kepada calon Presiden/Wakil Presiden dengan cara :
+                   <div className="ml-6 mt-1 space-y-1">
+                     <div className="flex items-start">
+                       <span className="w-5 shrink-0">1)</span>
+                       <p className="flex-1 text-justify">membuat keputusan dan/atau tindakan yang menguntungkan atau merugikan salah satu pasangan calon selama masa kampanye; dan/atau</p>
+                     </div>
+                     <div className="flex items-start">
+                       <span className="w-5 shrink-0">2)</span>
+                       <p className="flex-1 text-justify">mengadakan kegiatan yang mengarah kepada keberpihakan terhadap pasangan calon yang menjadi peserta pemilu sebelum, selama, dan/atau sesudah masa kampanye meliputi pertemuan, ajakan, himbauan, seruan, atau pemberian barang kepada Aparatur Sipil Negara dalam lingkungan unit kerjanya, anggota keluarga, dan masyarakat.</p>
+                     </div>
+                   </div>
+                </li>
+                <li>memberikan dukungan kepada calon anggota Dewan Perwakilan Daerah atau calon Kepala Daerah/Wakil Kepala Daerah dengan cara memberikan surat dukungan disertai foto kopi Kartu Tanda Penduduk atau Surat Keterangan Tanda Penduduk sesuai dengan ketentuan peraturan perundang-undangan; dan</li>
+                <li>
+                   memberikan dukungan kepada calon Kepala Daerah/Wakil Kepala Daerah, dengan cara :
+                   <div className="ml-6 mt-1 space-y-1">
+                     <div className="flex items-start">
+                       <span className="w-5 shrink-0">1)</span>
+                       <p className="flex-1 text-justify">terlibat dalam kegiatan kampanye untuk mendukung calon Kepala Daerah/Wakil Kepala Daerah;</p>
+                     </div>
+                     <div className="flex items-start">
+                       <span className="w-5 shrink-0">2)</span>
+                       <p className="flex-1 text-justify">menggunakan fasilitas yang terkait dengan jabatan dalam kegiatan kampanye;</p>
+                     </div>
+                     <div className="flex items-start">
+                       <span className="w-5 shrink-0">3)</span>
+                       <p className="flex-1 text-justify">membuat keputusan dan/atau tindakan yang menguntungkan atau merugikan salah satu pasangan calon selama masa kampanye; dan/atau</p>
+                     </div>
+                     <div className="flex items-start">
+                       <span className="w-5 shrink-0">4)</span>
+                       <p className="flex-1 text-justify">mengadakan kegiatan yang mengarah kepada keberpihakan terhadap pasangan calon yang menjadi peserta pemilu sebelum, selama, dan/atau sesudah masa kampanye meliputi pertemuan, ajakan, himbauan, seruan, atau pemberian barang kepada Aparatur Sipil Negara dalam lingkungan kerjanya, anggota keluarga, dan masyarakat.</p>
+                     </div>
+                   </div>
+                </li>
+              </ol>
+            </div>
+          </div>
+          <div className="flex items-start">
+            <span className="w-8 shrink-0">(5)</span>
+            <div className="flex-1 text-justify">
+              <p>Selain larangan sebagaimana dimaksud pada ayat (4), PIHAK KEDUA dilarang :</p>
+              <ol className="list-[lower-alpha] ml-6 mt-1 space-y-1">
+                <li>merusak dengan sengaja dan/atau menghilangkan aset milik Pemerintah Kabupaten Demak;</li>
+                <li>mencemarkan nama baik pimpinan atau teman kerja di instansi kerja masing-masing;</li>
+                <li>membocorkan rahasia jabatan dan dokumen Negara; dan</li>
+                <li>melakukan perbuatan tercela yang bertentangan dengan agama dan etika yang berlaku di masyarakat.</li>
+              </ol>
+            </div>
+          </div>
+          <div className="flex items-start">
+            <span className="w-8 shrink-0">(6)</span>
+            <p className="flex-1 text-justify">PIHAK KEDUA yang tidak mematuhi kewajiban dan/atau melanggar larangan sebagaimana dimaksud pada ayat (2), ayat (3), ayat (4), dan ayat (5) diberikan sanksi hukuman disiplin sesuai dengan ketentuan peraturan perundang-undangan yang berlaku.</p>
+          </div>
+          <div className="flex items-start">
+            <span className="w-8 shrink-0">(7)</span>
+            <p className="flex-1 text-justify">Tata cara penjatuhan dan jenis hukuman disiplin sebagaimana dimaksud pada ayat (6) mengikuti ketentuan yang berlaku sebagaimana diatur dalam Peraturan Pemerintah yang mengatur mengenai disiplin Pegawai Negeri Sipil.</p>
+          </div>
+        </div>
       </div>
 
       {/* PASAL 6 */}
@@ -369,10 +435,16 @@ export const ContractDocument: React.FC<ContractDocumentProps> = ({ employee, se
           <p>Pasal 7</p>
           <p>CUTI</p>
         </div>
-        <ol className="list-decimal ml-8 mb-4 space-y-2 text-black pl-4">
-          <li>PIHAK KEDUA berhak mendapatkan cuti tahunan, cuti sakit, cuti melahirkan, dan cuti bersama selama masa Perjanjian Kerja.</li>
-          <li>Cuti sebagaimana dimaksud pada ayat (1) dilaksanakan sesuai dengan ketentuan peraturan perundang-undangan.</li>
-        </ol>
+        <div className="space-y-2 mb-4 text-black">
+          <div className="flex items-start">
+            <span className="w-8 shrink-0">(1)</span>
+            <p className="flex-1 text-justify">PIHAK KEDUA berhak mendapatkan cuti tahunan, cuti sakit, cuti melahirkan, dan cuti bersama selama masa Perjanjian Kerja.</p>
+          </div>
+          <div className="flex items-start">
+            <span className="w-8 shrink-0">(2)</span>
+            <p className="flex-1 text-justify">Cuti sebagaimana dimaksud pada ayat (1) dilaksanakan sesuai dengan ketentuan peraturan perundang-undangan.</p>
+          </div>
+        </div>
       </div>
 
       {/* PASAL 8 */}
@@ -381,10 +453,16 @@ export const ContractDocument: React.FC<ContractDocumentProps> = ({ employee, se
           <p>Pasal 8</p>
           <p>PENGEMBANGAN KOMPETENSI</p>
         </div>
-        <ol className="list-decimal ml-8 mb-4 space-y-2 text-black pl-4">
-          <li>PIHAK KEDUA wajib melakukan pengembangan kompetensi melalui pembelajaran secara terus menerus agar tetap relevan dengan tuntutan organisasi.</li>
-          <li>Pelaksanaan pengembangan kompetensi sebagaimana dimaksud pada ayat (1) dilaksanakan sesuai dengan ketentuan peraturan perundang-undangan.</li>
-        </ol>
+        <div className="space-y-2 mb-4 text-black">
+          <div className="flex items-start">
+            <span className="w-8 shrink-0">(1)</span>
+            <p className="flex-1 text-justify">PIHAK KEDUA wajib melakukan pengembangan kompetensi melalui pembelajaran secara terus menerus agar tetap relevan dengan tuntutan organisasi.</p>
+          </div>
+          <div className="flex items-start">
+            <span className="w-8 shrink-0">(2)</span>
+            <p className="flex-1 text-justify">Pelaksanaan pengembangan kompetensi sebagaimana dimaksud pada ayat (1) dilaksanakan sesuai dengan ketentuan peraturan perundang-undangan.</p>
+          </div>
+        </div>
       </div>
 
       {/* PASAL 9 */}
@@ -393,19 +471,31 @@ export const ContractDocument: React.FC<ContractDocumentProps> = ({ employee, se
           <p>Pasal 9</p>
           <p>PENGHARGAAN</p>
         </div>
-        <ol className="list-decimal ml-8 mb-4 space-y-2 text-black pl-4">
-          <li>
-            PIHAK KESATU dapat memberikan penghargaan kepada PIHAK KEDUA berupa :
-            <ol className="list-[lower-alpha] ml-6 mt-1 space-y-1">
-              <li>tanda kehormatan;</li>
-              <li>kesempatan prioritas untuk pengembangan kompetensi; dan/atau</li>
-              <li>kesempatan menghadiri acara resmi dan/atau acara kenegaraan.</li>
-            </ol>
-          </li>
-          <li>Pemberian penghargaan kepada PIHAK KEDUA sebagaimana dimaksud pada ayat (1) huruf a dilaksanakan sesuai dengan ketentuan peraturan perundang-undangan.</li>
-          <li>Pemberian penghargaan kepada PIHAK KEDUA sebagaimana dimaksud pada ayat (1) huruf b diberikan kepada PIHAK KEDUA apabila mempunyai penilaian kinerja yang paling baik.</li>
-          <li>Pemberian penghargaan kepada PIHAK KEDUA sebagaimana dimaksud pada ayat (1) huruf c diberikan kepada PIHAK KEDUA setelah mendapatkan pertimbangan dari Tim Penilai Kinerja Pegawai Pemerintah dengan Perjanjian Kerja Paruh Waktu yang ada pada PIHAK KESATU.</li>
-        </ol>
+        <div className="space-y-2 mb-4 text-black">
+          <div className="flex items-start">
+            <span className="w-8 shrink-0">(1)</span>
+            <div className="flex-1 text-justify">
+              <p>PIHAK KESATU dapat memberikan penghargaan kepada PIHAK KEDUA berupa :</p>
+              <ol className="list-[lower-alpha] ml-6 mt-1 space-y-1">
+                <li>tanda kehormatan;</li>
+                <li>kesempatan prioritas untuk pengembangan kompetensi; dan/atau</li>
+                <li>kesempatan menghadiri acara resmi dan/atau acara kenegaraan.</li>
+              </ol>
+            </div>
+          </div>
+          <div className="flex items-start">
+            <span className="w-8 shrink-0">(2)</span>
+            <p className="flex-1 text-justify">Pemberian penghargaan kepada PIHAK KEDUA sebagaimana dimaksud pada ayat (1) huruf a dilaksanakan sesuai dengan ketentuan peraturan perundang-undangan.</p>
+          </div>
+          <div className="flex items-start">
+            <span className="w-8 shrink-0">(3)</span>
+            <p className="flex-1 text-justify">Pemberian penghargaan kepada PIHAK KEDUA sebagaimana dimaksud pada ayat (1) huruf b diberikan kepada PIHAK KEDUA apabila mempunyai penilaian kinerja yang paling baik.</p>
+          </div>
+          <div className="flex items-start">
+            <span className="w-8 shrink-0">(4)</span>
+            <p className="flex-1 text-justify">Pemberian penghargaan kepada PIHAK KEDUA sebagaimana dimaksud pada ayat (1) huruf c diberikan kepada PIHAK KEDUA setelah mendapatkan pertimbangan dari Tim Penilai Kinerja Pegawai Pemerintah dengan Perjanjian Kerja Paruh Waktu yang ada pada PIHAK KESATU.</p>
+          </div>
+        </div>
       </div>
 
       {/* PASAL 10 */}
@@ -414,12 +504,24 @@ export const ContractDocument: React.FC<ContractDocumentProps> = ({ employee, se
           <p>Pasal 10</p>
           <p>PERLINDUNGAN</p>
         </div>
-        <ol className="list-decimal ml-8 mb-4 space-y-2 text-black pl-4">
-          <li>PIHAK KESATU wajib memberikan perlindungan bagi PIHAK KEDUA sesuai dengan ketentuan peraturan perundang-undangan.</li>
-          <li>Perlindungan sebagaimana dimaksud pada ayat (1) dilakukan dengan mengikutsertakan PIHAK KEDUA dalam program sistem jaminan sosial nasional.</li>
-          <li>Perlindungan sebagaimana dimaksud pada ayat (1) diberikan kepada PIHAK KEDUA terkait dengan pelaksanaan tugas.</li>
-          <li>Pemberian perlindungan kepada PIHAK KEDUA sebagaimana dimaksud pada ayat (1) dilaksanakan sesuai dengan ketentuan peraturan perundang-undangan.</li>
-        </ol>
+        <div className="space-y-2 mb-4 text-black">
+          <div className="flex items-start">
+            <span className="w-8 shrink-0">(1)</span>
+            <p className="flex-1 text-justify">PIHAK KESATU wajib memberikan perlindungan bagi PIHAK KEDUA sesuai dengan ketentuan peraturan perundang-undangan.</p>
+          </div>
+          <div className="flex items-start">
+            <span className="w-8 shrink-0">(2)</span>
+            <p className="flex-1 text-justify">Perlindungan sebagaimana dimaksud pada ayat (1) dilakukan dengan mengikutsertakan PIHAK KEDUA dalam program sistem jaminan sosial nasional.</p>
+          </div>
+          <div className="flex items-start">
+            <span className="w-8 shrink-0">(3)</span>
+            <p className="flex-1 text-justify">Perlindungan sebagaimana dimaksud pada ayat (1) diberikan kepada PIHAK KEDUA terkait dengan pelaksanaan tugas.</p>
+          </div>
+          <div className="flex items-start">
+            <span className="w-8 shrink-0">(4)</span>
+            <p className="flex-1 text-justify">Pemberian perlindungan kepada PIHAK KEDUA sebagaimana dimaksud pada ayat (1) dilaksanakan sesuai dengan ketentuan peraturan perundang-undangan.</p>
+          </div>
+        </div>
       </div>
 
       {/* PASAL 11 */}
@@ -429,36 +531,45 @@ export const ContractDocument: React.FC<ContractDocumentProps> = ({ employee, se
           <p>PEMUTUSAN HUBUNGAN PERJANJIAN KERJA</p>
         </div>
         <div className="mb-4 text-black">
-          <p className="mb-2">PIHAK KESATU dan PIHAK KEDUA dapat melakukan pemutusan hubungan Perjanjian Kerja dengan ketentuan sebagai berikut :</p>
-          <ol className="list-decimal ml-8 space-y-2 pl-4">
-            <li>
-              Pemutusan hubungan Perjanjian Kerja dengan hormat dilakukan apabila :
-              <ol className="list-[lower-alpha] ml-6 mt-1 space-y-1">
-                <li>jangka waktu Perjanjian Kerja berakhir;</li>
-                <li>PIHAK KEDUA meninggal dunia;</li>
-                <li>PIHAK KEDUA memasuki Batas Usia Tertentu mengikuti ketentuan yang berlaku sebagaimana diatur dalam Peraturan Pemerintah yang mengatur mengenai Batas Usia Pensiun Pegawai Negeri Sipil;</li>
-                <li>PIHAK KEDUA mengajukan permohonan berhenti sebagai Pegawai Pemerintah dengan Perjanjian Kerja Paruh Waktu; atau</li>
-                <li>terjadi perampingan organisasi atau kebijakan pemerintah yang mengakibatkan pengurangan Pegawai Pemerintah dengan Perjanjian Kerja Paruh Waktu pada PIHAK KESATU.</li>
-              </ol>
-            </li>
-            <li>
-              Pemutusan hubungan Perjanjian Kerja dengan hormat tidak atas permintaan sendiri dilakukan apabila :
-              <ol className="list-[lower-alpha] ml-6 mt-1 space-y-1">
-                <li>PIHAK KEDUA dihukum penjara berdasarkan putusan pengadilan yang telah memiliki kekuatan hukum tetap karena melakukan tindak pidana penjara paling singkat 2 (dua) tahun dan tindak pidana dilakukan dengan tidak berencana;</li>
-                <li>PIHAK KEDUA melakukan pelanggaran kewajiban dan/atau larangan sebagaimana yang dimaksud dalam Pasal 5; atau</li>
-                <li>PIHAK KEDUA tidak dapat memenuhi target kinerja yang telah disepakati sesuai dengan Perjanjian Kerja.</li>
-              </ol>
-            </li>
-            <li>
-              Pemutusan hubungan Perjanjian Kerja tidak dengan hormat dilakukan apabila :
-              <ol className="list-[lower-alpha] ml-6 mt-1 space-y-1">
-                <li>melakukan penyelewengan terhadap Pancasila dan/atau Undang-Undang Dasar Negara Republik Indonesia Tahun 1945;</li>
-                <li>dihukum penjara atau kurungan berdasarkan putusan pengadilan yang telah memiliki kekuatan hukum tetap karena melakukan tindak pidana kejahatan jabatan atau tindak pidana yang ada hubungannya dengan jabatan;</li>
-                <li>menjadi anggota dan/atau pengurus partai politik; atau</li>
-                <li>dihukum penjara berdasarkan putusan pengadilan yang telah memiliki kekuatan hukum tetap karena melakukan tindak pidana yang diancam pidana penjara paling singkat 2 (dua) tahun atau lebih dan tindak pidana tersebut dilakukan dengan berencana.</li>
-              </ol>
-            </li>
-          </ol>
+          <p className="mb-2 text-justify">PIHAK KESATU dan PIHAK KEDUA dapat melakukan pemutusan hubungan Perjanjian Kerja dengan ketentuan sebagai berikut :</p>
+          <div className="space-y-2">
+            <div className="flex items-start">
+              <span className="w-8 shrink-0">(1)</span>
+              <div className="flex-1 text-justify">
+                <p>Pemutusan hubungan Perjanjian Kerja dengan hormat dilakukan apabila :</p>
+                <ol className="list-[lower-alpha] ml-6 mt-1 space-y-1">
+                  <li>jangka waktu Perjanjian Kerja berakhir;</li>
+                  <li>PIHAK KEDUA meninggal dunia;</li>
+                  <li>PIHAK KEDUA memasuki Batas Usia Tertentu mengikuti ketentuan yang berlaku sebagaimana diatur dalam Peraturan Pemerintah yang mengatur mengenai Batas Usia Pensiun Pegawai Negeri Sipil;</li>
+                  <li>PIHAK KEDUA mengajukan permohonan berhenti sebagai Pegawai Pemerintah dengan Perjanjian Kerja Paruh Waktu; atau</li>
+                  <li>terjadi perampingan organisasi atau kebijakan pemerintah yang mengakibatkan pengurangan Pegawai Pemerintah dengan Perjanjian Kerja Paruh Waktu pada PIHAK KESATU.</li>
+                </ol>
+              </div>
+            </div>
+            <div className="flex items-start">
+              <span className="w-8 shrink-0">(2)</span>
+              <div className="flex-1 text-justify">
+                <p>Pemutusan hubungan Perjanjian Kerja dengan hormat tidak atas permintaan sendiri dilakukan apabila :</p>
+                <ol className="list-[lower-alpha] ml-6 mt-1 space-y-1">
+                  <li>PIHAK KEDUA dihukum penjara berdasarkan putusan pengadilan yang telah memiliki kekuatan hukum tetap karena melakukan tindak pidana penjara paling singkat 2 (dua) tahun dan tindak pidana dilakukan dengan tidak berencana;</li>
+                  <li>PIHAK KEDUA melakukan pelanggaran kewajiban dan/atau larangan sebagaimana yang dimaksud dalam Pasal 5; atau</li>
+                  <li>PIHAK KEDUA tidak dapat memenuhi target kinerja yang telah disepakati sesuai dengan Perjanjian Kerja.</li>
+                </ol>
+              </div>
+            </div>
+            <div className="flex items-start">
+              <span className="w-8 shrink-0">(3)</span>
+              <div className="flex-1 text-justify">
+                <p>Pemutusan hubungan Perjanjian Kerja tidak dengan hormat dilakukan apabila :</p>
+                <ol className="list-[lower-alpha] ml-6 mt-1 space-y-1">
+                  <li>melakukan penyelewengan terhadap Pancasila dan/atau Undang-Undang Dasar Negara Republik Indonesia Tahun 1945;</li>
+                  <li>dihukum penjara atau kurungan berdasarkan putusan pengadilan yang telah memiliki kekuatan hukum tetap karena melakukan tindak pidana kejahatan jabatan atau tindak pidana yang ada hubungannya dengan jabatan;</li>
+                  <li>menjadi anggota dan/atau pengurus partai politik; atau</li>
+                  <li>dihukum penjara berdasarkan putusan pengadilan yang telah memiliki kekuatan hukum tetap karena melakukan tindak pidana yang diancam pidana penjara paling singkat 2 (dua) tahun atau lebih dan tindak pidana tersebut dilakukan dengan berencana.</li>
+                </ol>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -479,11 +590,20 @@ export const ContractDocument: React.FC<ContractDocumentProps> = ({ employee, se
           <p>Pasal 13</p>
           <p>LAIN-LAIN</p>
         </div>
-        <ol className="list-decimal ml-8 mb-4 space-y-2 text-black pl-4">
-          <li>PIHAK KEDUA bersedia melaksanakan seluruh ketentuan yang telah diatur dalam peraturan kedinasan dan peraturan lainnya yang berlaku di PIHAK KESATU.</li>
-          <li>PIHAK KEDUA wajib menyimpan dan menjaga kerahasiaan baik dokumen maupun informasi milik PIHAK KESATU sesuai dengan ketentuan peraturan perundang- undangan.</li>
-          <li>PIHAK KESATU dapat memperpanjang masa Perjanjian Kerja yang dilaksanakan sesuai dengan ketentuan peraturan perundang-undangan.</li>
-        </ol>
+        <div className="space-y-2 mb-4 text-black">
+          <div className="flex items-start">
+            <span className="w-8 shrink-0">(1)</span>
+            <p className="flex-1 text-justify">PIHAK KEDUA bersedia melaksanakan seluruh ketentuan yang telah diatur dalam peraturan kedinasan dan peraturan lainnya yang berlaku di PIHAK KESATU.</p>
+          </div>
+          <div className="flex items-start">
+            <span className="w-8 shrink-0">(2)</span>
+            <p className="flex-1 text-justify">PIHAK KEDUA wajib menyimpan dan menjaga kerahasiaan baik dokumen maupun informasi milik PIHAK KESATU sesuai dengan ketentuan peraturan perundang- undangan.</p>
+          </div>
+          <div className="flex items-start">
+            <span className="w-8 shrink-0">(3)</span>
+            <p className="flex-1 text-justify">PIHAK KESATU dapat memperpanjang masa Perjanjian Kerja yang dilaksanakan sesuai dengan ketentuan peraturan perundang-undangan.</p>
+          </div>
+        </div>
       </div>
 
       <p className="mt-8 mb-8 text-black break-inside-avoid">
